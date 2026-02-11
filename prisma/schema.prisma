@@ -1,0 +1,149 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// --- USER & AUTH ---
+model User {
+  id        String   @id @default(cuid())
+  name      String?
+  phone     String   @unique
+  dob       DateTime?
+  state     String?
+  city      String?
+  interests String[]
+  image     String?
+  role      String   @default("user") // "user", "admin", "cafe_owner"
+  fcmToken  String?  // For Push Notifications
+  
+  cards        LoyaltyCard[]
+  reservations Reservation[]
+  history      Transaction[]
+  stamps       StampHistory[]
+  userRewards  UserReward[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Otp {
+  id        String   @id @default(cuid())
+  phone     String   @unique
+  code      String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+}
+
+// --- CAFE & OPERATIONS ---
+model Cafe {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  address     String
+  city        String?  // To filter popular cafes by city
+  image       String?  // Main cover image
+  lat         Float?
+  lng         Float?
+  rating      Float    @default(4.5)
+  totalTables Int      @default(10)
+  visitCount  Int      @default(0) // To sort "Popular Cafes"
+  
+  cards        LoyaltyCard[]
+  reservations Reservation[]
+  rewards      Reward[]
+  
+  createdAt DateTime @default(now())
+}
+
+model Reservation {
+  id        String   @id @default(cuid())
+  userId    String
+  cafeId    String
+  date      DateTime // The booking date/time
+  guests    Int
+  status    String   @default("PENDING") // "PENDING", "CONFIRMED", "CANCELLED"
+  
+  user      User     @relation(fields: [userId], references: [id])
+  cafe      Cafe     @relation(fields: [cafeId], references: [id])
+  
+  createdAt DateTime @default(now())
+}
+
+// --- LOYALTY ENGINE ---
+model LoyaltyCard {
+  id           String        @id @default(cuid())
+  userId       String
+  cafeId       String
+  balance      Int           @default(0) // Current Points
+  stamps       Int           @default(0) // Current Stamp Count
+  maxStamps    Int           @default(10) // Target stamps (e.g. 10 to get reward)
+  tier         String        @default("Silver") // Level 1, Gold, etc.
+  totalSpends  Float         @default(0.0)
+  
+  user         User          @relation(fields: [userId], references: [id])
+  cafe         Cafe          @relation(fields: [cafeId], references: [id])
+  transactions Transaction[]
+  stampHistory StampHistory[]
+
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  @@unique([userId, cafeId])
+}
+
+model StampHistory {
+  id        String   @id @default(cuid())
+  userId    String
+  cardId    String
+  action    String   // "EARNED", "REDEEMED"
+  amount    Int      // How many stamps
+  
+  user      User        @relation(fields: [userId], references: [id])
+  card      LoyaltyCard @relation(fields: [cardId], references: [id])
+  
+  createdAt DateTime @default(now())
+}
+
+// Rewards offered by the Cafe (Catalog)
+model Reward {
+  id          String   @id @default(cuid())
+  cafeId      String
+  title       String
+  cost        Int      // Points/Stamps needed
+  description String?
+  
+  cafe        Cafe     @relation(fields: [cafeId], references: [id])
+}
+
+// Rewards Claimed/Owned by the User
+model UserReward {
+  id          String   @id @default(cuid())
+  userId      String
+  title       String
+  cafeName    String
+  expiry      String   // e.g. "2024-12-31"
+  status      String   @default("READY") // READY, USED, EXPIRED
+  pointsUsed  Int
+  
+  user        User     @relation(fields: [userId], references: [id])
+  
+  createdAt   DateTime @default(now())
+}
+
+model Transaction {
+  id           String      @id @default(cuid())
+  userId       String
+  cardId       String
+  amount       Float       // Money spent
+  pointsEarned Int
+  type         String      // "EARN" or "REDEEM"
+  
+  user         User        @relation(fields: [userId], references: [id])
+  card         LoyaltyCard @relation(fields: [cardId], references: [id])
+  
+  createdAt    DateTime    @default(now())
+}

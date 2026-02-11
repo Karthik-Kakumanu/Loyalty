@@ -1,3 +1,5 @@
+// next.config.ts
+
 import type { NextConfig } from "next";
 import withPWA from "next-pwa";
 
@@ -9,9 +11,13 @@ const nextConfig: NextConfig = {
     ],
   },
   reactStrictMode: true,
+
+  // 🔧 This line forces Next.js to use Webpack instead of Turbopack
+  experimental: {
+    turbo: false,
+  },
 };
 
-// Wrap with PWA config
 const configWithPWA = withPWA({
   dest: "public",
   register: true,

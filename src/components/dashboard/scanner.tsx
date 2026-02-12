@@ -28,10 +28,6 @@ export function Scanner({ isOpen, onClose, onScan }: ScannerProps) {
   const handleScan = async (rawValue: string) => {
     if (isProcessing || !rawValue) return; 
     
-    // Valid format check (optional but good for UX)
-    // If you expect "loyaltyapp://", ignore other QR codes
-    // if (!rawValue.includes("loyalty")) return; 
-
     setIsProcessing(true);
 
     try {
@@ -99,11 +95,9 @@ export function Scanner({ isOpen, onClose, onScan }: ScannerProps) {
                     console.error("Scanner Error:", error);
                     setError("Camera permission denied.");
                   }}
-                  // Correct props for @yudiel/react-qr-scanner v2+
+                  // --- FIX: Removed 'audio' and 'tracker' to fix build errors ---
                   components={{ 
                     finder: false,
-                    audio: false, 
-                    tracker: false
                   }}
                   styles={{
                     container: { width: "100%", height: "100%" },

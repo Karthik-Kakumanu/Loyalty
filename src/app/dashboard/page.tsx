@@ -20,15 +20,15 @@ import {
 import { getDashboardData, searchCafes, joinCafe } from "@/actions/dashboard"; 
 import { useRouter } from "next/navigation";
 
-// --- TYPES ---
+// --- TYPES (Fixed to match Prisma Schema) ---
 type Cafe = {
   id: string;
   name: string;
   address: string;
-  image: string; 
+  image: string | null; // Allow null
   rating: number;
-  lat?: number;
-  lng?: number;
+  lat: number | null;   // Allow null
+  lng: number | null;   // Allow null
 };
 
 type LoyaltyCard = {
@@ -46,8 +46,8 @@ const TABS = [
   { id: "nearby", label: "Nearby", icon: Navigation },
 ];
 
-// --- UTILS: Calculate Distance ---
-function calculateDistance(lat1: number, lon1: number, lat2: number, lon2: number) {
+// --- UTILS: Calculate Real Distance ---
+function calculateDistance(lat1: number | null, lon1: number | null, lat2: number | null, lon2: number | null) {
   if (!lat1 || !lon1 || !lat2 || !lon2) return null;
   const R = 6371; // km
   const dLat = (lat2 - lat1) * (Math.PI / 180);
@@ -74,21 +74,26 @@ export default function Dashboard() {
   const fetchData = useCallback(async () => {
     try {
       const res = await getDashboardData();
-      // Handle the case where the server returns null gracefully
-      if (res) {
-        const { myCards, trending, allCafes } = res;
-        setData({ myCards, trending, allCafes });
-      } else {
-        setData({ myCards: [], trending: [], allCafes: [] });
-      }
-
       
-      // Auto-switch tab if user has cards
-      if (res?.myCards && res.myCards.length > 0) {
-        setActiveTab("cards");
+      // Safety check: ensure response exists
+      if (res) {
+        setData({
+          myCards: res.myCards || [],
+          trending: res.trending || [],
+          allCafes: res.allCafes || []
+        });
+
+        // Auto-switch tab if user has cards
+        if (res.myCards && res.myCards.length > 0) {
+          setActiveTab("cards");
+        }
+      } else {
+        // Fallback if server returns nothing
+        setData({ myCards: [], trending: [], allCafes: [] });
       }
     } catch (error) {
       console.error("Error fetching data:", error);
+      setData({ myCards: [], trending: [], allCafes: [] });
     } finally {
       setIsLoading(false);
     }
@@ -139,12 +144,19 @@ export default function Dashboard() {
     }
   };
 
-  // Helper for background images/colors
-  const getBgStyle = (imageString: string) => {
+  // Helper for background images/colors (Handles Nulls)
+  const getBgStyle = (imageString: string | null | undefined) => {
     if (imageString?.startsWith("http") || imageString?.startsWith("/")) {
       return { backgroundImage: `url(${imageString})` };
     }
     return {}; // Use className for colors
+  };
+
+  // Helper to safely get image class (Handles Nulls)
+  const getImageClass = (imageString: string | null | undefined) => {
+    if (!imageString) return "bg-zinc-800"; // Default fallback color
+    if (imageString.startsWith("http") || imageString.startsWith("/")) return "bg-zinc-200";
+    return imageString; // Assume it's a tailwind class like 'bg-red-500'
   };
 
   if (isLoading) return <div className="min-h-[60vh] flex items-center justify-center text-zinc-400"><Loader2 className="animate-spin mr-2"/> Loading...</div>;
@@ -220,10 +232,10 @@ export default function Dashboard() {
                 </div>
               ) : (
                 data.myCards.map((card: LoyaltyCard) => (
-                  <div key={card.id} className="relative w-full h-48 rounded-[24px] overflow-hidden shadow-lg shadow-zinc-200 group">
+                  <div key={card.id} className="relative w-full h-48 rounded-[24px] overflow-hidden shadow-lg shadow-zinc-200 group bg-zinc-900">
                     {/* Background Image Paved */}
                     <div 
-                      className={`absolute inset-0 bg-cover bg-center transition-transform duration-500 group-hover:scale-105 ${card.cafe.image}`} 
+                      className={`absolute inset-0 bg-cover bg-center transition-transform duration-500 group-hover:scale-105 ${getImageClass(card.cafe.image)}`} 
                       style={getBgStyle(card.cafe.image)}
                     />
                     <div className="absolute inset-0 bg-black/50" /> {/* Dark Overlay */}
@@ -283,7 +295,10 @@ export default function Dashboard() {
                     {isMember ? <CheckCircle2 size={12} className="text-green-400"/> : <Lock size={12} />}
                   </div>
 
-                  <div className={`h-32 w-full rounded-2xl bg-zinc-200 bg-cover bg-center ${cafe.image}`} style={getBgStyle(cafe.image)} />
+                  <div 
+                    className={`h-32 w-full rounded-2xl bg-zinc-200 bg-cover bg-center ${getImageClass(cafe.image)}`} 
+                    style={getBgStyle(cafe.image)} 
+                  />
                   
                   <div>
                     <h3 className="font-bold text-sm text-zinc-900 leading-tight truncate">{cafe.name}</h3>
@@ -320,7 +335,10 @@ export default function Dashboard() {
                   onClick={() => !isMember && setUnlockModal(cafe)}
                   className="bg-white p-3 rounded-[24px] border border-zinc-100 shadow-sm flex gap-4 items-center active:scale-[0.98] transition-transform hover:shadow-md cursor-pointer"
                 >
-                  <div className={`w-20 h-20 bg-zinc-200 rounded-2xl flex-shrink-0 bg-cover bg-center ${cafe.image}`} style={getBgStyle(cafe.image)} />
+                  <div 
+                    className={`w-20 h-20 bg-zinc-200 rounded-2xl flex-shrink-0 bg-cover bg-center ${getImageClass(cafe.image)}`} 
+                    style={getBgStyle(cafe.image)} 
+                  />
                   
                   <div className="flex-1 min-w-0">
                     <div className="flex justify-between mb-1">
@@ -364,7 +382,10 @@ export default function Dashboard() {
               className="relative w-full max-w-sm bg-white rounded-3xl p-1 overflow-hidden shadow-2xl"
             >
                <div className="relative bg-white rounded-[22px] overflow-hidden">
-                  <div className={`h-36 bg-zinc-200 bg-cover bg-center relative ${unlockModal.image}`} style={getBgStyle(unlockModal.image)}>
+                  <div 
+                    className={`h-36 bg-zinc-200 bg-cover bg-center relative ${getImageClass(unlockModal.image)}`} 
+                    style={getBgStyle(unlockModal.image)}
+                  >
                       <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/20 to-transparent" />
                       <button onClick={() => setUnlockModal(null)} className="absolute top-4 right-4 bg-black/30 text-white p-1.5 rounded-full hover:bg-black/50 backdrop-blur-md"><X size={16} /></button>
                       <div className="absolute bottom-4 left-4 text-white">

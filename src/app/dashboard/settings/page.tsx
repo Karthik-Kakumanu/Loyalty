@@ -1,8 +1,10 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
-import { User, Bell, Shield, LogOut, ChevronRight, FileText, HelpCircle, Camera } from "lucide-react";
+import { User, Bell, Shield, LogOut, ChevronRight, FileText, HelpCircle, Camera, Loader2 } from "lucide-react";
 import { logoutUser } from "@/actions/auth";
+import { getUserProfile } from "@/actions/dashboard"; // Import the new action
 
 // Menu configuration
 const MENU_ITEMS = [
@@ -14,6 +16,26 @@ const MENU_ITEMS = [
 ];
 
 export default function SettingsPage() {
+  const [user, setUser] = useState<{ name: string | null; phone: string; image: string | null } | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  // Fetch the real user data on mount
+  useEffect(() => {
+    async function loadProfile() {
+      try {
+        const data = await getUserProfile();
+        setUser(data as any);
+      } catch (e) {
+        console.error("Error loading profile", e);
+      } finally {
+        setLoading(false);
+      }
+    }
+    loadProfile();
+  }, []);
+
+  if (loading) return <div className="min-h-[60vh] flex items-center justify-center text-zinc-400"><Loader2 className="animate-spin mr-2"/> Loading...</div>;
+
   return (
     <div className="space-y-8 pb-24">
       {/* Title */}
@@ -33,15 +55,27 @@ export default function SettingsPage() {
       >
         <div className="relative">
           <div className="w-28 h-28 bg-zinc-100 rounded-full flex items-center justify-center border-4 border-white shadow-xl overflow-hidden">
-             {/* Replace with <Image /> if available */}
-             <span className="text-4xl font-bold text-zinc-300">K</span>
+             {/* Dynamic Avatar */}
+             {user?.image ? (
+               <div className="w-full h-full bg-cover bg-center" style={{ backgroundImage: `url(${user.image})` }} />
+             ) : (
+               <span className="text-4xl font-bold text-zinc-300">
+                 {user?.name ? user.name.charAt(0).toUpperCase() : "U"}
+               </span>
+             )}
           </div>
           <button className="absolute bottom-0 right-0 bg-[#C72C48] p-2.5 rounded-full text-white shadow-lg border-2 border-white active:scale-95 transition-transform">
             <Camera size={16} />
           </button>
         </div>
-        <h2 className="text-xl font-bold mt-4 text-zinc-900">Karthik</h2>
-        <p className="text-zinc-500 text-sm font-medium">+91 88979 25715</p>
+        
+        {/* REAL DYNAMIC DATA */}
+        <h2 className="text-xl font-bold mt-4 text-zinc-900">
+          {user?.name || "Loyalty User"}
+        </h2>
+        <p className="text-zinc-500 text-sm font-medium">
+          {user?.phone ? `+${user.phone}` : ""}
+        </p>
       </motion.div>
 
       {/* Settings Menu */}

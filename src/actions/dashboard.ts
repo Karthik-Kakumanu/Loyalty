@@ -157,3 +157,23 @@ export async function getLoyaltyData() {
     return [];
   }
 }
+
+// ... (Keep existing imports and functions)
+
+// 6. Get User Profile for Settings
+export async function getUserProfile() {
+  try {
+    const session = await getSession();
+    if (!session || !session.userId) return null;
+
+    const user = await db.user.findUnique({
+      where: { id: session.userId },
+      select: { name: true, phone: true, image: true }
+    });
+
+    return user;
+  } catch (error) {
+    console.error("Failed to fetch profile:", error);
+    return null;
+  }
+}

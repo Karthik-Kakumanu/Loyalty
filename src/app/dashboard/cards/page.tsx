@@ -26,7 +26,7 @@ interface LoyaltyCard {
   cafe: {
     id: string;
     name: string;
-    image: string; // Tailwind bg color class or URL
+    image: string | null; // Tailwind bg color class or URL
     rating: number;
   };
 }

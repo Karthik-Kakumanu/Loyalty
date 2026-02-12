@@ -75,7 +75,13 @@ export default function Dashboard() {
     try {
       const res = await getDashboardData();
       // Handle the case where the server returns null gracefully
-      setData(res || { myCards: [], trending: [], allCafes: [] });
+      if (res) {
+        const { myCards, trending, allCafes } = res;
+        setData({ myCards, trending, allCafes });
+      } else {
+        setData({ myCards: [], trending: [], allCafes: [] });
+      }
+
       
       // Auto-switch tab if user has cards
       if (res?.myCards && res.myCards.length > 0) {

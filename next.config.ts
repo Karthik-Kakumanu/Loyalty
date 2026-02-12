@@ -13,9 +13,9 @@ const nextConfig: NextConfig = {
   reactStrictMode: true,
 
   // 🔧 This line forces Next.js to use Webpack instead of Turbopack
-  experimental: {
-    turbo: false,
-  },
+  // experimental: {
+  //   turbo: false,
+  // },
 };
 
 const configWithPWA = withPWA({

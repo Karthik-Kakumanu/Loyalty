@@ -1,5 +1,4 @@
 // next.config.ts
-
 import type { NextConfig } from "next";
 import withPWA from "next-pwa";
 
@@ -11,11 +10,6 @@ const nextConfig: NextConfig = {
     ],
   },
   reactStrictMode: true,
-
-  // ✅ Force use of Webpack to avoid Turbopack issues on Render
-  webpack: (config, options) => {
-    return config;
-  },
 };
 
 const configWithPWA = withPWA({

@@ -14,7 +14,7 @@ export async function checkUserExists(phone: string, countryCode: string) {
   return { exists: !!user };
 }
 
-// 2. Send OTP (Updated for better delivery)
+// 2. Send OTP (Using Quick Route as per Fast2SMS Support)
 export async function sendOtp(formData: FormData) {
   const phone = formData.get("phone") as string;
   const countryCode = formData.get("countryCode") as string;
@@ -28,7 +28,7 @@ export async function sendOtp(formData: FormData) {
   const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
   const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 Minutes expiry
 
-  // Always log for Render Dashboard debugging (Method 1)
+  // Always log for Render Dashboard debugging
   console.log(`[DEBUG] Generated OTP: ${otpCode} for ${cleanPhone}`);
 
   // Send SMS via Fast2SMS
@@ -36,15 +36,16 @@ export async function sendOtp(formData: FormData) {
   
   if (apiKey && countryCode === "+91") {
     try {
-      console.log("[Fast2SMS] Attempting to send SMS...");
+      console.log("[Fast2SMS] Attempting to send SMS via Quick Route...");
       
-      // We switch to route: "otp" which works better for verification codes
+      // SWITCHED BACK TO "q" ROUTE based on Support recommendation
       const response = await fetch("https://www.fast2sms.com/dev/bulkV2", {
         method: "POST",
         headers: { "authorization": apiKey, "Content-Type": "application/json" },
         body: JSON.stringify({
-          route: "otp", 
-          variables_values: otpCode, 
+          route: "q", 
+          message: `Your Loyalty OTP is ${otpCode}`, // "q" uses 'message', not 'variables_values'
+          flash: 0,
           numbers: cleanPhone,
         })
       });

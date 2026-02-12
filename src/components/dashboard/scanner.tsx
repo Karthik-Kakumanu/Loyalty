@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { X, AlertCircle } from "lucide-react";
+import { X, AlertCircle, Loader2 } from "lucide-react";
 import { Scanner as QrScanner } from "@yudiel/react-qr-scanner";
 import { useRouter } from "next/navigation";
 import { joinCafe } from "@/actions/dashboard"; 
@@ -26,32 +26,39 @@ export function Scanner({ isOpen, onClose, onScan }: ScannerProps) {
 
   // Handle successful scan
   const handleScan = async (rawValue: string) => {
-    if (isProcessing) return; // Prevent double scans
+    if (isProcessing || !rawValue) return; 
+    
+    // Valid format check (optional but good for UX)
+    // If you expect "loyaltyapp://", ignore other QR codes
+    // if (!rawValue.includes("loyalty")) return; 
+
     setIsProcessing(true);
 
     try {
-      // 1. Check if the scanned code is a valid Cafe ID or App URL
-      // Example format expected: "loyaltyapp://cafe/cl123456" OR just "cl123456"
+      // 1. Clean the ID
       const cafeId = rawValue.replace("loyaltyapp://cafe/", ""); 
 
       // 2. Call Server Action to Join
       const result = await joinCafe(cafeId);
 
       if (result.success) {
-        // Success! Close scanner and redirect/refresh
         onScan(cafeId); // Notify parent
         onClose(); 
-        router.refresh(); // Refresh data on dashboard
-        // Optional: Trigger a success toast here
+        router.refresh(); 
       } else {
         setError(result.error || "Invalid QR Code");
-        setTimeout(() => setError(null), 3000); // Clear error after 3s
-        setIsProcessing(false); // Allow re-scanning
+        setTimeout(() => {
+            setError(null);
+            setIsProcessing(false); 
+        }, 3000);
       }
     } catch (e) {
       console.error(e);
       setError("Failed to process code");
-      setIsProcessing(false);
+      setTimeout(() => {
+          setError(null);
+          setIsProcessing(false);
+      }, 3000);
     }
   };
 
@@ -67,21 +74,21 @@ export function Scanner({ isOpen, onClose, onScan }: ScannerProps) {
           className="fixed inset-0 z-[100] bg-black flex flex-col"
         >
           {/* Header */}
-          <div className="absolute top-0 left-0 right-0 p-6 flex justify-between items-center z-20 bg-gradient-to-b from-black/80 to-transparent">
-            <h2 className="text-lg font-bold text-white">Scan to Join</h2>
+          <div className="absolute top-0 left-0 right-0 p-4 pt-safe flex justify-between items-center z-20 bg-gradient-to-b from-black/80 to-transparent">
+            <h2 className="text-lg font-bold text-white pl-2">Scan to Join</h2>
             <button 
               onClick={onClose} 
-              className="p-2 bg-white/20 backdrop-blur-md rounded-full text-white hover:bg-white/30 transition-colors"
+              className="p-2 bg-white/20 backdrop-blur-md rounded-full text-white hover:bg-white/30 transition-colors active:scale-95"
             >
-              <X size={20} />
+              <X size={24} />
             </button>
           </div>
 
           {/* Camera Viewport */}
-          <div className="flex-1 relative flex items-center justify-center bg-black">
+          <div className="flex-1 relative flex items-center justify-center bg-black overflow-hidden">
             
             {/* REAL CAMERA FEED */}
-            <div className="absolute inset-0 flex items-center justify-center overflow-hidden">
+            <div className="absolute inset-0 w-full h-full">
                <QrScanner
                   onScan={(result) => {
                     if (result && result.length > 0) {
@@ -92,55 +99,61 @@ export function Scanner({ isOpen, onClose, onScan }: ScannerProps) {
                     console.error("Scanner Error:", error);
                     setError("Camera permission denied.");
                   }}
-                  // FIXED: Removed 'audio' property which caused the build error
+                  // Correct props for @yudiel/react-qr-scanner v2+
                   components={{ 
-                    finder: false 
+                    finder: false,
+                    audio: false, 
+                    tracker: false
                   }}
                   styles={{
                     container: { width: "100%", height: "100%" },
-                    video: { objectFit: "cover" }
+                    video: { width: "100%", height: "100%", objectFit: "cover" }
                   }}
                />
             </div>
 
-            {/* Status / Error Message */}
-            {error && (
-              <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-30 bg-red-500/90 text-white px-4 py-2 rounded-xl flex items-center gap-2 shadow-lg animate-pulse">
-                <AlertCircle size={16} />
-                <span className="text-sm font-medium">{error}</span>
-              </div>
-            )}
+            {/* Error Message */}
+            <AnimatePresence>
+                {error && (
+                <motion.div 
+                    initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 10 }}
+                    className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-30 bg-red-500/90 backdrop-blur-md text-white px-6 py-3 rounded-2xl flex items-center gap-2 shadow-xl"
+                >
+                    <AlertCircle size={20} />
+                    <span className="text-sm font-bold">{error}</span>
+                </motion.div>
+                )}
+            </AnimatePresence>
 
+            {/* Processing State */}
             {isProcessing && !error && (
-               <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-30 bg-black/60 backdrop-blur-md text-white px-6 py-3 rounded-2xl flex flex-col items-center gap-2 shadow-lg">
-                 <div className="w-6 h-6 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                 <span className="text-xs font-bold uppercase tracking-wide">Verifying...</span>
+               <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-30 bg-black/70 backdrop-blur-md text-white px-8 py-4 rounded-2xl flex flex-col items-center gap-3 shadow-2xl border border-white/10">
+                 <Loader2 className="w-8 h-8 animate-spin text-[#C72C48]" />
+                 <span className="text-xs font-bold uppercase tracking-widest text-white/90">Verifying...</span>
                </div>
             )}
             
             {/* Custom Scanner Frame (Overlay UI) */}
-            <div className="relative w-72 h-72 rounded-3xl overflow-hidden z-10 pointer-events-none">
-              {/* Glowing Borders */}
-              <div className="absolute inset-0 border-[3px] border-[#C72C48]/50 rounded-3xl" />
+            <div className="relative w-64 h-64 md:w-80 md:h-80 rounded-[2rem] z-10 pointer-events-none">
               
               {/* Corner Markers */}
-              <div className="absolute top-0 left-0 w-8 h-8 border-l-4 border-t-4 border-[#C72C48] rounded-tl-xl shadow-[0_0_10px_#C72C48]" />
-              <div className="absolute top-0 right-0 w-8 h-8 border-r-4 border-t-4 border-[#C72C48] rounded-tr-xl shadow-[0_0_10px_#C72C48]" />
-              <div className="absolute bottom-0 left-0 w-8 h-8 border-l-4 border-b-4 border-[#C72C48] rounded-bl-xl shadow-[0_0_10px_#C72C48]" />
-              <div className="absolute bottom-0 right-0 w-8 h-8 border-r-4 border-b-4 border-[#C72C48] rounded-br-xl shadow-[0_0_10px_#C72C48]" />
+              <div className="absolute top-0 left-0 w-10 h-10 border-l-[4px] border-t-[4px] border-[#C72C48] rounded-tl-2xl shadow-[0_0_15px_#C72C48]" />
+              <div className="absolute top-0 right-0 w-10 h-10 border-r-[4px] border-t-[4px] border-[#C72C48] rounded-tr-2xl shadow-[0_0_15px_#C72C48]" />
+              <div className="absolute bottom-0 left-0 w-10 h-10 border-l-[4px] border-b-[4px] border-[#C72C48] rounded-bl-2xl shadow-[0_0_15px_#C72C48]" />
+              <div className="absolute bottom-0 right-0 w-10 h-10 border-r-[4px] border-b-[4px] border-[#C72C48] rounded-br-2xl shadow-[0_0_15px_#C72C48]" />
 
               {/* Scanning Laser Animation */}
-              {!isProcessing && (
+              {!isProcessing && !error && (
                 <motion.div 
-                  animate={{ top: ["0%", "100%", "0%"] }}
-                  transition={{ duration: 2.5, repeat: Infinity, ease: "easeInOut" }}
-                  className="absolute left-4 right-4 h-0.5 bg-[#C72C48] shadow-[0_0_20px_#C72C48,0_0_10px_#C72C48]"
+                  animate={{ top: ["5%", "95%", "5%"] }}
+                  transition={{ duration: 2.5, repeat: Infinity, ease: "linear" }}
+                  className="absolute left-2 right-2 h-[2px] bg-red-500 shadow-[0_0_20px_rgba(255,0,0,0.8)] opacity-80"
                 />
               )}
             </div>
 
-            <p className="absolute bottom-24 text-white/80 text-sm font-medium bg-black/40 backdrop-blur-md px-6 py-3 rounded-full border border-white/10 z-20">
-              Align Cafe QR code within the frame
+            <p className="absolute bottom-12 text-white/90 text-sm font-medium bg-black/40 backdrop-blur-md px-6 py-3 rounded-full border border-white/10 z-20">
+              Align QR code within the frame
             </p>
           </div>
         </motion.div>

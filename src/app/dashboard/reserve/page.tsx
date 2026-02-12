@@ -27,6 +27,19 @@ const getBgStyle = (imageString: string) => {
   return {}; 
 };
 
+// --- Component: Reserve Skeleton ---
+const ReserveSkeleton = () => (
+  <div className="p-4 flex gap-4 items-center bg-white rounded-2xl border border-zinc-100 shadow-sm animate-pulse">
+    <div className="h-24 w-24 bg-zinc-200 rounded-2xl flex-shrink-0" />
+    <div className="flex-1 space-y-2">
+      <div className="h-5 w-3/4 bg-zinc-200 rounded" />
+      <div className="h-3 w-1/2 bg-zinc-200 rounded" />
+      <div className="h-4 w-1/3 bg-zinc-200 rounded mt-2" />
+    </div>
+    <div className="h-10 w-10 bg-zinc-200 rounded-xl" />
+  </div>
+);
+
 export default function ReservePage() {
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -58,135 +71,146 @@ export default function ReservePage() {
     }
   };
 
-  if (loading) return <div className="min-h-[60vh] flex items-center justify-center text-zinc-400"><Loader2 className="animate-spin mr-2"/> Loading Availability...</div>;
-
   return (
-    <div className="space-y-8 pb-24">
+    <div className="w-full max-w-7xl mx-auto space-y-6 pb-32 md:pb-12">
       
       {/* HEADER */}
       <motion.div 
         initial={{ opacity: 0, y: -10 }} 
         animate={{ opacity: 1, y: 0 }}
+        className="px-5 md:px-0 pt-2"
       >
-        <h1 className="text-2xl font-bold text-zinc-900">Reserve a Table</h1>
-        <p className="text-zinc-500 text-sm">Real-time availability at cafes near you.</p>
+        <h1 className="text-2xl md:text-3xl font-bold text-zinc-900 tracking-tight">Reserve a Table</h1>
+        <p className="text-sm text-zinc-500 font-medium mt-1">Real-time availability at cafes near you.</p>
       </motion.div>
 
-      {/* --- LIVE CAFES LIST --- */}
-      <div className="grid gap-4">
-        {data?.cafes?.map((cafe: any, i: number) => {
-          // Calculate Tables: Total - Active Reservations
-          // Uses db._count field we fetched
-          const tablesLeft = Math.max(0, cafe.totalTables - (cafe._count?.reservations || 0));
-          const isFull = tablesLeft === 0;
-          const distance = userLoc && cafe.lat && cafe.lng ? calculateDistance(userLoc.lat, userLoc.lng, cafe.lat, cafe.lng) : null;
-          
-          return (
-            <motion.div
-              key={cafe.id}
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: i * 0.05 }}
-            >
-              <Card className="p-4 flex gap-4 items-center group cursor-pointer border-zinc-100 shadow-sm active:scale-[0.98] transition-transform hover:shadow-md">
-                
-                {/* Cafe Image */}
-                <div 
-                  className={`h-24 w-24 rounded-2xl flex-shrink-0 bg-cover bg-center bg-zinc-100 ${cafe.image}`} 
-                  style={getBgStyle(cafe.image)}
-                />
-
-                <div className="flex-1 min-w-0 py-1">
-                  <div className="flex justify-between items-start mb-1">
-                    <h3 className="font-bold text-zinc-900 truncate text-base">{cafe.name}</h3>
-                    {isFull ? (
-                      <span className="text-[10px] font-bold bg-zinc-100 text-zinc-500 px-2.5 py-1 rounded-full whitespace-nowrap border border-zinc-200">
-                        Full
-                      </span>
-                    ) : (
-                      <span className="text-[10px] font-bold bg-green-50 text-green-700 px-2.5 py-1 rounded-full whitespace-nowrap border border-green-100 flex items-center gap-1">
-                        <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
-                        {tablesLeft} left
-                      </span>
-                    )}
-                  </div>
-                  
-                  <div className="flex items-center text-xs text-zinc-500 mt-1 mb-2">
-                    <MapPin size={12} className="mr-1 shrink-0" />
-                    <span className="truncate">
-                      {distance ? `${distance} km • ` : ""}{cafe.address}
-                    </span>
-                  </div>
-
-                  <div className="flex items-center gap-3 text-xs text-zinc-400">
-                     <span className="flex items-center bg-zinc-50 px-2 py-1 rounded-md">
-                       <Clock size={12} className="mr-1"/> 10 AM - 11 PM
-                     </span>
-                  </div>
-                </div>
-
-                <div className="flex flex-col gap-2">
-                  <button 
-                    disabled={isFull}
-                    className="bg-zinc-900 text-white rounded-xl h-10 w-10 flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed active:bg-zinc-800 shadow-md transition-colors"
-                  >
-                    <ChevronRight size={20} />
-                  </button>
-                  {/* Google Maps Button */}
-                  <button 
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleNavigate(cafe.lat, cafe.lng);
-                    }}
-                    className="bg-white border border-zinc-200 text-zinc-400 rounded-xl h-10 w-10 flex items-center justify-center active:bg-zinc-50 hover:text-[#C72C48] hover:border-[#C72C48]/30 transition-colors"
-                  >
-                    <Navigation size={16} />
-                  </button>
-                </div>
-              </Card>
-            </motion.div>
-          )
-        })}
-      </div>
-
-      {/* --- USER BOOKING HISTORY --- */}
-      <div className="pt-6">
-        <h2 className="text-lg font-bold text-zinc-900 mb-4">Your Bookings</h2>
+      {/* --- CONTENT AREA --- */}
+      <div className="px-5 md:px-0">
         
-        {data?.reservations?.length > 0 ? (
-          <div className="space-y-3">
-            {data.reservations.map((res: any) => (
-              <div key={res.id} className="p-4 bg-white border border-zinc-100 rounded-2xl flex items-center justify-between shadow-sm">
-                <div className="flex items-center gap-3">
-                  <div className="h-10 w-10 rounded-full bg-[#C72C48]/10 flex items-center justify-center text-[#C72C48]">
-                    <CalendarCheck size={20} />
-                  </div>
-                  <div>
-                    <p className="font-bold text-sm text-zinc-900">{res.cafe.name}</p>
-                    <p className="text-xs text-zinc-500">
-                      {new Date(res.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute:'2-digit' })}
-                    </p>
-                  </div>
-                </div>
-                <span className={`text-[10px] font-bold px-2 py-1 rounded-md ${
-                  res.status === 'CONFIRMED' ? 'bg-green-50 text-green-700' : 'bg-zinc-100 text-zinc-500'
-                }`}>
-                  {res.status}
-                </span>
-              </div>
-            ))}
-          </div>
-        ) : (
-          <div className="p-8 border-2 border-dashed border-zinc-200 rounded-3xl flex flex-col items-center justify-center text-center bg-zinc-50/50">
-             <div className="w-12 h-12 bg-white rounded-full flex items-center justify-center shadow-sm mb-3">
-               <CalendarClock size={20} className="text-zinc-400" />
-             </div>
-             <p className="text-zinc-900 font-medium text-sm">No active reservations</p>
-             <p className="text-zinc-400 text-xs mt-1">Book a table to see it here.</p>
+        {/* Loading Skeletons */}
+        {loading && (
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+            {[1, 2, 3, 4].map((i) => <ReserveSkeleton key={i} />)}
           </div>
         )}
-      </div>
 
+        {/* --- LIVE CAFES LIST --- */}
+        {!loading && (
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+            {data?.cafes?.map((cafe: any, i: number) => {
+              // Calculate Tables: Total - Active Reservations
+              const tablesLeft = Math.max(0, cafe.totalTables - (cafe._count?.reservations || 0));
+              const isFull = tablesLeft === 0;
+              const distance = userLoc && cafe.lat && cafe.lng ? calculateDistance(userLoc.lat, userLoc.lng, cafe.lat, cafe.lng) : null;
+              
+              return (
+                <motion.div
+                  key={cafe.id}
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: i * 0.05 }}
+                >
+                  <Card className="p-4 flex gap-4 items-center group cursor-pointer border-zinc-100 shadow-sm active:scale-[0.98] transition-transform hover:shadow-md h-full">
+                    
+                    {/* Cafe Image */}
+                    <div 
+                      className={`h-24 w-24 rounded-2xl flex-shrink-0 bg-cover bg-center bg-zinc-100 ${cafe.image}`} 
+                      style={getBgStyle(cafe.image)}
+                    />
+
+                    <div className="flex-1 min-w-0 py-1">
+                      <div className="flex justify-between items-start mb-1 gap-2">
+                        <h3 className="font-bold text-zinc-900 truncate text-base leading-tight">{cafe.name}</h3>
+                        {isFull ? (
+                          <span className="text-[10px] font-bold bg-zinc-100 text-zinc-500 px-2.5 py-1 rounded-full whitespace-nowrap border border-zinc-200 shrink-0">
+                            Full
+                          </span>
+                        ) : (
+                          <span className="text-[10px] font-bold bg-green-50 text-green-700 px-2.5 py-1 rounded-full whitespace-nowrap border border-green-100 flex items-center gap-1 shrink-0">
+                            <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
+                            {tablesLeft} left
+                          </span>
+                        )}
+                      </div>
+                      
+                      <div className="flex items-center text-xs text-zinc-500 mt-1 mb-2">
+                        <MapPin size={12} className="mr-1 shrink-0" />
+                        <span className="truncate">
+                          {distance ? `${distance} km • ` : ""}{cafe.address}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center gap-3 text-xs text-zinc-400">
+                         <span className="flex items-center bg-zinc-50 px-2 py-1 rounded-md">
+                           <Clock size={12} className="mr-1"/> 10 AM - 11 PM
+                         </span>
+                      </div>
+                    </div>
+
+                    <div className="flex flex-col gap-2 shrink-0">
+                      <button 
+                        disabled={isFull}
+                        className="bg-zinc-900 text-white rounded-xl h-10 w-10 flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed active:bg-zinc-800 shadow-md transition-colors hover:bg-black"
+                      >
+                        <ChevronRight size={20} />
+                      </button>
+                      {/* Google Maps Button */}
+                      <button 
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleNavigate(cafe.lat, cafe.lng);
+                        }}
+                        className="bg-white border border-zinc-200 text-zinc-400 rounded-xl h-10 w-10 flex items-center justify-center active:bg-zinc-50 hover:text-[#C72C48] hover:border-[#C72C48]/30 transition-colors"
+                      >
+                        <Navigation size={16} />
+                      </button>
+                    </div>
+                  </Card>
+                </motion.div>
+              )
+            })}
+          </div>
+        )}
+
+        {/* --- USER BOOKING HISTORY --- */}
+        <div className="pt-8">
+          <h2 className="text-lg font-bold text-zinc-900 mb-4 px-1">Your Bookings</h2>
+          
+          {data?.reservations?.length > 0 ? (
+            <div className="space-y-3">
+              {data.reservations.map((res: any) => (
+                <div key={res.id} className="p-4 bg-white border border-zinc-100 rounded-2xl flex items-center justify-between shadow-sm hover:bg-zinc-50 transition-colors">
+                  <div className="flex items-center gap-3">
+                    <div className="h-10 w-10 rounded-full bg-[#C72C48]/10 flex items-center justify-center text-[#C72C48]">
+                      <CalendarCheck size={20} />
+                    </div>
+                    <div>
+                      <p className="font-bold text-sm text-zinc-900">{res.cafe.name}</p>
+                      <p className="text-xs text-zinc-500">
+                        {new Date(res.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute:'2-digit' })}
+                      </p>
+                    </div>
+                  </div>
+                  <span className={`text-[10px] font-bold px-2 py-1 rounded-md ${
+                    res.status === 'CONFIRMED' ? 'bg-green-50 text-green-700' : 'bg-zinc-100 text-zinc-500'
+                  }`}>
+                    {res.status}
+                  </span>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="p-8 border-2 border-dashed border-zinc-200 rounded-3xl flex flex-col items-center justify-center text-center bg-zinc-50/50">
+               <div className="w-12 h-12 bg-white rounded-full flex items-center justify-center shadow-sm mb-3">
+                 <CalendarClock size={20} className="text-zinc-400" />
+               </div>
+               <p className="text-zinc-900 font-medium text-sm">No active reservations</p>
+               <p className="text-zinc-400 text-xs mt-1">Book a table to see it here.</p>
+            </div>
+          )}
+        </div>
+
+      </div>
     </div>
   );
 }

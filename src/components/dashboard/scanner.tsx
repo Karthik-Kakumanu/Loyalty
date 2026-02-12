@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { X, AlertCircle } from "lucide-react";
 import { Scanner as QrScanner } from "@yudiel/react-qr-scanner";
 import { useRouter } from "next/navigation";
-import { joinCafe } from "@/actions/dashboard"; // Import the real server action
+import { joinCafe } from "@/actions/dashboard"; 
 
 interface ScannerProps {
   isOpen: boolean;
@@ -92,8 +92,8 @@ export function Scanner({ isOpen, onClose, onScan }: ScannerProps) {
                     console.error("Scanner Error:", error);
                     setError("Camera permission denied.");
                   }}
+                  // FIXED: Removed 'audio' property which caused the build error
                   components={{ 
-                    audio: false, 
                     finder: false 
                   }}
                   styles={{

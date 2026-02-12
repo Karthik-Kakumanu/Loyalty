@@ -1,0 +1,24 @@
+{
+  "name": "Loyalty Cafe",
+  "short_name": "Loyalty",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#C72C48",
+  "orientation": "portrait",
+  "description": "A Loyalty Card Based Cafe App",
+  "icons": [
+    {
+      "src": "/icons/icon-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icons/icon-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

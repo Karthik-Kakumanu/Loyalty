@@ -12,10 +12,10 @@ const nextConfig: NextConfig = {
   },
   reactStrictMode: true,
 
-  // 🔧 This line forces Next.js to use Webpack instead of Turbopack
-  // experimental: {
-  //   turbo: false,
-  // },
+  // ✅ Force use of Webpack to avoid Turbopack issues on Render
+  webpack: (config, options) => {
+    return config;
+  },
 };
 
 const configWithPWA = withPWA({

@@ -1,6 +1,17 @@
 import type { Metadata, Viewport } from "next";
-// ... other imports
-import { InstallPrompt } from "@/components/pwa/InstallPrompt"; // Ensure you created this from the previous step
+import { Geist, Geist_Mono } from "next/font/google";
+import "./globals.css"; // <--- THIS WAS MISSING! RESTORES STYLES
+import { InstallPrompt } from "@/components/pwa/InstallPrompt";
+
+const geistSans = Geist({
+  variable: "--font-geist-sans",
+  subsets: ["latin"],
+});
+
+const geistMono = Geist_Mono({
+  variable: "--font-geist-mono",
+  subsets: ["latin"],
+});
 
 export const viewport: Viewport = {
   themeColor: "#C72C48",
@@ -15,7 +26,7 @@ export const metadata: Metadata = {
   description: "Your favorite cafes in one app.",
   manifest: "/manifest.json",
   icons: {
-    icon: "/icons/icon-192x192.png", // This must match the folder you created
+    icon: "/icons/icon-192x192.png",
     apple: "/icons/icon-192x192.png",
   },
   appleWebApp: {
@@ -32,8 +43,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      {/* ... fonts ... */}
-      <body>
+      <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
         {children}
         <InstallPrompt />
       </body>

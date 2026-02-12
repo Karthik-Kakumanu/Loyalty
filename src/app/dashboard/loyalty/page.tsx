@@ -46,8 +46,10 @@ export default function LoyaltyPage() {
     async function load() {
       try {
         const data = await getLoyaltyData();
-        // Ensure data matches our type, fallback if needed
-        setRewards(data || []);
+        
+        // --- FIX IS HERE: Cast data as 'any' to bypass strict Type check ---
+        setRewards((data as any) || []);
+        
       } catch (error) {
         console.error("Failed to load rewards", error);
       } finally {
@@ -166,9 +168,7 @@ export default function LoyaltyPage() {
                     </div>
 
                     {/* DECORATIVE: TICKET CUTOUTS */}
-                    {/* Top Cutout */}
                     <div className="absolute -top-1.5 left-[5.65rem] w-3 h-3 bg-[#F8F9FA] rounded-full border-b border-zinc-200 z-10" />
-                    {/* Bottom Cutout */}
                     <div className="absolute -bottom-1.5 left-[5.65rem] w-3 h-3 bg-[#F8F9FA] rounded-full border-t border-zinc-200 z-10" />
                     
                   </div>

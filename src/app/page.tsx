@@ -11,7 +11,7 @@ export default function Home() {
       </div>
 
       <h1 className="text-3xl font-bold text-zinc-900 mb-3 tracking-tight">
-        Loyalty App
+        Revistra
       </h1>
       
       <p className="text-zinc-500 mb-10 max-w-xs leading-relaxed">

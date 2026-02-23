@@ -72,7 +72,7 @@ export default function SettingsPage() {
         
         {/* REAL DYNAMIC DATA */}
         <h2 className="text-xl font-bold mt-4 text-zinc-900">
-          {user?.name || "Loyalty User"}
+          {user?.name || "Revistra User"}
         </h2>
         <p className="text-zinc-500 text-sm font-medium">
           {/* Ensure phone always has a + prefix for display aesthetics if missing */}

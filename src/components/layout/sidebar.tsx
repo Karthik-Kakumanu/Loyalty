@@ -33,7 +33,7 @@ export function Sidebar() {
           <div className="h-10 w-10 bg-[#C72C48] rounded-xl flex items-center justify-center shadow-md shadow-red-200">
             <span className="text-white font-bold text-lg">L</span>
           </div>
-          <span className="font-bold text-xl tracking-tight text-zinc-900">LoyaltyApp</span>
+          <span className="font-bold text-xl tracking-tight text-zinc-900">Revistra</span>
         </div>
 
         {/* --- NAVIGATION --- */}

@@ -27,7 +27,7 @@ export const viewport: Viewport = {
 
 // 2. PWA Metadata
 export const metadata: Metadata = {
-  title: "Loyalty Cafe App",
+  title: "Revistra - Your Loyalty Companion",
   description: "Your favorite cafes in one app.",
   manifest: "/manifest.json",
   icons: {
@@ -37,7 +37,7 @@ export const metadata: Metadata = {
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
-    title: "Loyalty App",
+    title: "Revistra ",
   },
   formatDetection: {
     telephone: false, // Prevents blue links on phone numbers (we style them ourselves)

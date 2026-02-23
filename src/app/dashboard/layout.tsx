@@ -112,7 +112,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         <header className="md:hidden fixed top-0 left-0 right-0 h-16 z-40 bg-white/90 backdrop-blur-md border-b border-zinc-200 px-5 flex items-center justify-between shadow-sm">
           <div className="flex items-center gap-3">
             <div className="w-8 h-8 bg-[#C72C48] rounded-lg flex items-center justify-center text-white font-bold text-sm shadow-sm shadow-red-200">L</div>
-            <span className="font-bold text-lg tracking-tight text-zinc-900">LoyaltyApp</span>
+            <span className="font-bold text-lg tracking-tight text-zinc-900">Revistra</span>
           </div>
           
           {/* Mobile Profile Button */}

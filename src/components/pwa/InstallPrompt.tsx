@@ -87,7 +87,7 @@ export function InstallPrompt() {
             {/* Text Content */}
             <h3 className="text-xl font-bold mb-2 tracking-tight">Install App</h3>
             <p className="text-zinc-400 text-sm mb-8 leading-relaxed px-2">
-              Add <strong>Loyalty Cafe</strong> to your home screen for the best fullscreen experience and faster access.
+              Add <strong>Revistra</strong> to your home screen for the best fullscreen experience and faster access.
             </p>
 
             {/* Install Button */}

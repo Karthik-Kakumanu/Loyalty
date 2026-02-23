@@ -44,7 +44,7 @@ export async function sendOtp(formData: FormData) {
         headers: { "authorization": apiKey, "Content-Type": "application/json" },
         body: JSON.stringify({
           route: "q", 
-          message: `Your Loyalty OTP is ${otpCode}`, // "q" uses 'message', not 'variables_values'
+          message: `Your Revistra OTP is ${otpCode}`, // "q" uses 'message', not 'variables_values'
           flash: 0,
           numbers: cleanPhone,
         })

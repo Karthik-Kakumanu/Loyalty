@@ -11,7 +11,7 @@ import { updateInterests } from "@/actions/auth";
 const STEPS = [
   {
     id: "intro",
-    title: "Welcome to LoyaltyApp",
+    title: "Welcome to Revistra",
     desc: "Discover exclusive rewards, manage your cards, and find the best cafes near you.",
     icon: Sparkles
   },

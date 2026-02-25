@@ -43,7 +43,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           <div className="w-10 h-10 bg-[#C72C48] rounded-xl flex items-center justify-center text-white font-bold text-xl shadow-md shadow-red-200">
             L
           </div>
-          <span className="font-bold text-xl tracking-tight text-zinc-900">LoyaltyApp</span>
+          <span className="font-bold text-xl tracking-tight text-zinc-900">Revistra</span>
         </div>
 
         {/* Desktop Navigation Links */}

@@ -1,3 +1,5 @@
+// prisma/schema.prisma
+
 generator client {
   provider = "prisma-client-js"
 }
@@ -9,22 +11,22 @@ datasource db {
 
 // --- USER & AUTH ---
 model User {
-  id        String   @id @default(cuid())
-  name      String?
-  phone     String   @unique
-  dob       DateTime?
-  state     String?
-  city      String?
-  interests String[]
-  image     String?
-  role      String   @default("user") // "user", "admin", "cafe_owner"
-  fcmToken  String?  // For Push Notifications
+  id          String        @id @default(cuid())
+  name        String?
+  phone       String        @unique
+  dob         DateTime?
+  state       String?
+  city        String?
+  interests   String[]
+  image       String?
+  role        String        @default("user") 
+  fcmToken    String?  
   
-  cards        LoyaltyCard[]
+  cards       LoyaltyCard[]
   reservations Reservation[]
-  history      Transaction[]
-  stamps       StampHistory[]
-  userRewards  UserReward[]
+  history     Transaction[]
+  stamps      StampHistory[]
+  userRewards UserReward[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -44,14 +46,18 @@ model Cafe {
   name        String
   description String?
   address     String
-  city        String?  // To filter popular cafes by city
-  image       String?  // Main cover image
+  city        String?  
+  image       String?  
   lat         Float?
   lng         Float?
   rating      Float    @default(4.5)
   totalTables Int      @default(10)
-  visitCount  Int      @default(0) // To sort "Popular Cafes"
+  visitCount  Int      @default(0) 
   
+  // --- NEW FIELDS FOR SERIAL NUMBERS ---
+  cardPrefix  String?  @default("MEM") // e.g. "CR" for Cake Roven
+  nextCardSeq Int      @default(1)     // Tracks the next number (e.g. 0001)
+
   cards        LoyaltyCard[]
   reservations Reservation[]
   rewards      Reward[]
@@ -63,9 +69,9 @@ model Reservation {
   id        String   @id @default(cuid())
   userId    String
   cafeId    String
-  date      DateTime // The booking date/time
+  date      DateTime 
   guests    Int
-  status    String   @default("PENDING") // "PENDING", "CONFIRMED", "CANCELLED"
+  status    String   @default("PENDING") 
   
   user      User     @relation(fields: [userId], references: [id])
   cafe      Cafe     @relation(fields: [cafeId], references: [id])
@@ -75,22 +81,26 @@ model Reservation {
 
 // --- LOYALTY ENGINE ---
 model LoyaltyCard {
-  id           String        @id @default(cuid())
-  userId       String
-  cafeId       String
-  balance      Int           @default(0) // Current Points
-  stamps       Int           @default(0) // Current Stamp Count
-  maxStamps    Int           @default(10) // Target stamps (e.g. 10 to get reward)
-  tier         String        @default("Silver") // Level 1, Gold, etc.
-  totalSpends  Float         @default(0.0)
+  id          String   @id @default(cuid())
+  userId      String
+  cafeId      String
   
-  user         User          @relation(fields: [userId], references: [id])
-  cafe         Cafe          @relation(fields: [cafeId], references: [id])
+  // --- NEW FIELD FOR THE VISIBLE ID ---
+  cardSerial  String?  // e.g. "CR0001", "SB0013"
+  
+  balance     Int      @default(0) 
+  stamps      Int      @default(0) 
+  maxStamps   Int      @default(10) 
+  tier        String   @default("Silver") 
+  totalSpends Float    @default(0.0)
+  
+  user        User     @relation(fields: [userId], references: [id])
+  cafe        Cafe     @relation(fields: [cafeId], references: [id])
   transactions Transaction[]
   stampHistory StampHistory[]
 
-  createdAt    DateTime      @default(now())
-  updatedAt    DateTime      @updatedAt
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
   @@unique([userId, cafeId])
 }
@@ -99,8 +109,8 @@ model StampHistory {
   id        String   @id @default(cuid())
   userId    String
   cardId    String
-  action    String   // "EARNED", "REDEEMED"
-  amount    Int      // How many stamps
+  action    String   
+  amount    Int      
   
   user      User        @relation(fields: [userId], references: [id])
   card      LoyaltyCard @relation(fields: [cardId], references: [id])
@@ -108,25 +118,23 @@ model StampHistory {
   createdAt DateTime @default(now())
 }
 
-// Rewards offered by the Cafe (Catalog)
 model Reward {
   id          String   @id @default(cuid())
   cafeId      String
   title       String
-  cost        Int      // Points/Stamps needed
+  cost        Int      
   description String?
   
   cafe        Cafe     @relation(fields: [cafeId], references: [id])
 }
 
-// Rewards Claimed/Owned by the User
 model UserReward {
   id          String   @id @default(cuid())
   userId      String
   title       String
   cafeName    String
-  expiry      String   // e.g. "2024-12-31"
-  status      String   @default("READY") // READY, USED, EXPIRED
+  expiry      String   
+  status      String   @default("READY") 
   pointsUsed  Int
   
   user        User     @relation(fields: [userId], references: [id])
@@ -138,9 +146,9 @@ model Transaction {
   id           String      @id @default(cuid())
   userId       String
   cardId       String
-  amount       Float       // Money spent
+  amount       Float       
   pointsEarned Int
-  type         String      // "EARN" or "REDEEM"
+  type         String      
   
   user         User        @relation(fields: [userId], references: [id])
   card         LoyaltyCard @relation(fields: [cardId], references: [id])

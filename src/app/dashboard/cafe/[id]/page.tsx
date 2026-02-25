@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
-import { MapPin, Star, Calendar, Users, ChevronLeft, CreditCard, Lock, Unlock } from "lucide-react";
+import { MapPin, Star, Calendar, Users, ChevronLeft, ChevronRight, CreditCard, Lock, Unlock } from "lucide-react";
 import { useRouter, useParams } from "next/navigation";
 import { getCafeDetails, reserveTable, joinCafeWithSerial } from "@/actions/cafe";
 import { Button } from "@/components/ui/button";

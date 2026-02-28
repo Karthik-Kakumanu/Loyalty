@@ -36,6 +36,12 @@ type CafeData = {
   }>;
 };
 
+type CafeDetailsResponse = Awaited<ReturnType<typeof getCafeDetails>>;
+type CafeDetailsWithPlan = NonNullable<CafeDetailsResponse> & {
+  plan?: "STARTER" | "GROWTH" | "CUSTOM";
+  menu?: MenuItem[];
+};
+
 // --- MOCK MENU DATA (Until your Admin Panel is connected) ---
 const MOCK_DB_MENU: MenuItem[] = [
   { id: 1, name: "Signature Ruby Latte", price: "$6.50", description: "Our house special rose-infused latte with a hint of Madagascar vanilla.", tag: "Popular", type: "VEG", isSpecial: true },
@@ -71,11 +77,19 @@ export default function CafeDetailsPage({ params }: { params: Promise<{ id: stri
 
   useEffect(() => {
     getCafeDetails(id).then(data => {
+      if (!data) {
+        setCafe(null);
+        setLoading(false);
+        return;
+      }
+
+      const typedData = data as CafeDetailsWithPlan;
+
       // NOTE: For testing purposes, we are injecting a fake plan and menu into the data.
-      const cafeDataWithMocks = {
-        ...data,
-        plan: data?.plan || "STARTER",
-        menu: data?.menu || MOCK_DB_MENU
+      const cafeDataWithMocks: CafeData = {
+        ...typedData,
+        plan: typedData.plan || "STARTER",
+        menu: typedData.menu || MOCK_DB_MENU
       };
       setCafe(cafeDataWithMocks);
       setLoading(false);
@@ -114,8 +128,8 @@ export default function CafeDetailsPage({ params }: { params: Promise<{ id: stri
   if (loading) return <div className="h-screen flex items-center justify-center bg-[#FDFCFD]"><Loader2 className="animate-spin text-[#C72C48] w-8 h-8"/></div>;
   if (!cafe) return <div className="h-screen flex items-center justify-center text-zinc-500 bg-[#FDFCFD]">Cafe not found</div>;
 
-  const isMember = cafe.cards && cafe.cards.length > 0;
-  const memberCard = isMember ? cafe.cards[0] : null;
+  const memberCard = cafe.cards?.[0] ?? null;
+  const isMember = Boolean(memberCard);
 
   // --- MENU FILTERING LOGIC BASED ON CAFE PLAN ---
   let displayMenu: MenuItem[] = cafe.menu || [];
@@ -176,7 +190,7 @@ export default function CafeDetailsPage({ params }: { params: Promise<{ id: stri
           </p>
 
           {/* --- MEMBERSHIP STATUS --- */}
-          {isMember ? (
+          {memberCard ? (
             <motion.button
               whileTap={{ scale: 0.98 }}
               onClick={() => router.push(`/dashboard/cards/${memberCard.id}`)}

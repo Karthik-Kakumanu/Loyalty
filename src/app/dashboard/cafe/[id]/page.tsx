@@ -1,162 +1,289 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { motion } from "framer-motion";
-import { MapPin, Star, Calendar, Users, ChevronLeft, ChevronRight, CreditCard, Lock, Unlock } from "lucide-react";
-import { useRouter, useParams } from "next/navigation";
-import { getCafeDetails, reserveTable, joinCafeWithSerial } from "@/actions/cafe";
-import { Button } from "@/components/ui/button";
-import { Loader2 } from "lucide-react";
+import { useEffect, useState, use } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import { MapPin, Star, ChevronLeft, ChevronRight, CreditCard, Lock, Loader2, Coffee, Navigation } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { getCafeDetails, joinCafeWithSerial } from "@/actions/cafe";
 
-export default function CafeDetailsPage() {
-  const { id } = useParams() as { id: string };
+// --- TYPES ---
+type MenuType = "VEG" | "NON-VEG";
+
+interface MenuItem {
+  id: string | number;
+  name: string;
+  price: string;
+  description: string;
+  tag?: string;
+  type: MenuType;
+  isSpecial: boolean;
+}
+
+type CafeData = {
+  id: string;
+  name: string;
+  address: string;
+  rating: number;
+  description?: string | null;
+  image?: string | null;
+  lat?: number | null;
+  lng?: number | null;
+  plan?: "STARTER" | "GROWTH" | "CUSTOM";
+  menu?: MenuItem[];
+  cards?: Array<{
+    id: string;
+    cardSerial?: string | null;
+  }>;
+};
+
+// --- MOCK MENU DATA (Until your Admin Panel is connected) ---
+const MOCK_DB_MENU: MenuItem[] = [
+  { id: 1, name: "Signature Ruby Latte", price: "$6.50", description: "Our house special rose-infused latte with a hint of Madagascar vanilla.", tag: "Popular", type: "VEG", isSpecial: true },
+  { id: 2, name: "Artisan Butter Croissant", price: "$4.00", description: "Freshly baked daily, perfectly flaky and golden brown.", type: "VEG", isSpecial: false },
+  { id: 3, name: "Smoked Turkey Sandwich", price: "$9.50", description: "Oven-smoked turkey breast with cranberry glaze on sourdough.", type: "NON-VEG", isSpecial: true },
+  { id: 4, name: "Truffle Chocolate Cake", price: "$8.50", description: "Rich dark chocolate layered with velvet truffle cream.", tag: "Chef's Pick", type: "VEG", isSpecial: false },
+  { id: 5, name: "Spicy Chicken Wrap", price: "$8.00", description: "Grilled chicken with spicy mayo and fresh greens.", type: "NON-VEG", isSpecial: false },
+  { id: 6, name: "Matcha Green Tea", price: "$5.50", description: "Premium ceremonial grade matcha whisked to perfection.", type: "VEG", isSpecial: true },
+];
+
+// Veg/Non-Veg Indicator Icon Component
+const DietIcon = ({ type }: { type: MenuType }) => {
+  const color = type === "VEG" ? "border-green-600" : "border-red-600";
+  const dotColor = type === "VEG" ? "bg-green-600" : "bg-red-600";
+  return (
+    <div className={`w-3 h-3 border flex items-center justify-center rounded-sm shrink-0 ${color}`}>
+      <div className={`w-1.5 h-1.5 rounded-full ${dotColor}`} />
+    </div>
+  );
+};
+
+export default function CafeDetailsPage({ params }: { params: Promise<{ id: string }> }) {
   const router = useRouter();
-  const [cafe, setCafe] = useState<any>(null);
+  const resolvedParams = use(params); 
+  const id = resolvedParams.id;
+
+  const [cafe, setCafe] = useState<CafeData | null>(null);
   const [loading, setLoading] = useState(true);
   const [joining, setJoining] = useState(false);
-  const [guests, setGuests] = useState(2);
-  const [date, setDate] = useState("");
+  
+  // State for Custom Plan Menu Filter
+  const [filter, setFilter] = useState<"ALL" | "VEG" | "NON-VEG">("ALL");
 
   useEffect(() => {
     getCafeDetails(id).then(data => {
-      setCafe(data);
+      // NOTE: For testing purposes, we are injecting a fake plan and menu into the data.
+      const cafeDataWithMocks = {
+        ...data,
+        plan: data?.plan || "STARTER",
+        menu: data?.menu || MOCK_DB_MENU
+      };
+      setCafe(cafeDataWithMocks);
       setLoading(false);
     });
   }, [id]);
 
   const handleJoin = async () => {
     setJoining(true);
-    const res = await joinCafeWithSerial(id);
-    if (res.success) {
-      window.location.reload(); // Hard refresh to update server state
-    } else {
-      alert("Error: " + res.error);
-      setJoining(false);
+    try {
+        const res = await joinCafeWithSerial(id);
+        if (res.success) {
+            window.location.reload(); 
+        } else {
+            alert("Error: " + res.error);
+            setJoining(false);
+        }
+    } catch {
+        setJoining(false);
     }
   };
 
-  const handleReserve = async () => {
-    if (!date) return alert("Select a date");
-    const res = await reserveTable(id, new Date(date), guests);
-    if (res.success) alert("Table Reserved!");
+  // --- GET DIRECTIONS LOGIC (FIXED) ---
+  const openGoogleMaps = () => {
+    if (!cafe) return;
+    
+    // Check if coordinates exist, otherwise use the cafe name and address
+    const destination = (cafe.lat && cafe.lng) 
+        ? `${cafe.lat},${cafe.lng}` 
+        : encodeURIComponent(`${cafe.name}, ${cafe.address}`);
+    
+    // Correct Official Google Maps Universal Link
+    const mapsUrl = `https://www.google.com/maps/dir/?api=1&destination=${destination}`;
+    window.open(mapsUrl, "_blank");
   };
 
-  if (loading) return <div className="h-screen flex items-center justify-center"><Loader2 className="animate-spin text-[#C72C48]"/></div>;
-  if (!cafe) return <div>Cafe not found</div>;
+  if (loading) return <div className="h-screen flex items-center justify-center bg-[#FDFCFD]"><Loader2 className="animate-spin text-[#C72C48] w-8 h-8"/></div>;
+  if (!cafe) return <div className="h-screen flex items-center justify-center text-zinc-500 bg-[#FDFCFD]">Cafe not found</div>;
 
   const isMember = cafe.cards && cafe.cards.length > 0;
   const memberCard = isMember ? cafe.cards[0] : null;
 
+  // --- MENU FILTERING LOGIC BASED ON CAFE PLAN ---
+  let displayMenu: MenuItem[] = cafe.menu || [];
+  
+  if (cafe.plan === "STARTER") {
+    displayMenu = displayMenu.filter(item => item.isSpecial).slice(0, 20);
+  } else if (cafe.plan === "GROWTH") {
+    displayMenu = displayMenu.slice(0, 50);
+    } else if (cafe.plan === "CUSTOM") {
+    if (filter !== "ALL") {
+      displayMenu = displayMenu.filter(item => item.type === filter);
+    }
+  }
+
   return (
-    <div className="min-h-screen bg-zinc-50 pb-24 relative">
+    <div className="min-h-screen bg-[#FDFCFD] pb-24 relative selection:bg-[#C72C48] selection:text-white">
       
-      {/* Hero Image */}
-      <div className="relative h-72 w-full">
-        <img src={cafe.image || "/placeholder.jpg"} className="h-full w-full object-cover" alt={cafe.name} />
-        <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
-        <button onClick={() => router.back()} className="absolute top-4 left-4 bg-white/20 backdrop-blur-md p-2 rounded-full text-white">
-          <ChevronLeft />
+      {/* --- HERO IMAGE --- */}
+      <div className="relative h-72 w-full bg-zinc-900">
+        <div 
+            className="absolute inset-0 bg-cover bg-center"
+            style={{ backgroundImage: `url(${cafe.image || "/placeholder.jpg"})` }}
+        />
+        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
+        <button onClick={() => router.back()} className="absolute top-4 left-4 bg-white/20 backdrop-blur-md p-2.5 rounded-full text-white hover:bg-white/30 transition-colors">
+          <ChevronLeft size={20} />
         </button>
       </div>
 
-      <div className="px-5 -mt-10 relative z-10">
-        <div className="bg-white rounded-[2rem] p-6 shadow-xl shadow-zinc-200/50 border border-zinc-100">
-          
+      <div className="px-5 -mt-12 relative z-10 space-y-6">
+        
+        {/* --- CAFE INFO CARD --- */}
+        <div className="bg-white rounded-[2rem] p-6 shadow-[0_15px_30px_-10px_rgba(0,0,0,0.05)] border border-zinc-100">
           <div className="flex justify-between items-start">
-            <div>
-              <h1 className="text-2xl font-bold text-zinc-900 leading-tight">{cafe.name}</h1>
-              <p className="text-zinc-500 text-sm flex items-center gap-1 mt-1">
-                <MapPin size={14} /> {cafe.address}
+            <div className="flex-1 pr-4">
+              <h1 className="text-2xl font-bold text-zinc-900 leading-tight font-serif tracking-tight">{cafe.name}</h1>
+              <p className="text-zinc-500 text-sm flex items-start gap-1.5 mt-2 font-medium text-left">
+                <MapPin size={16} className="text-[#C72C48] shrink-0 mt-0.5" /> 
+                <span className="leading-snug">{cafe.address}</span>
               </p>
             </div>
-            <div className="bg-yellow-50 text-yellow-700 px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1 border border-yellow-100">
+            <div className="bg-rose-50 text-[#C72C48] px-3 py-1.5 rounded-full text-xs font-bold flex items-center gap-1 border border-rose-100 shadow-sm shrink-0">
               <Star size={12} fill="currentColor" /> {cafe.rating}
             </div>
           </div>
 
-          <p className="text-zinc-500 text-sm mt-4 leading-relaxed border-b border-zinc-100 pb-4 mb-4">
-            {cafe.description || "Experience the best atmosphere and coffee in town."}
+          {/* DEDICATED GET DIRECTIONS BUTTON */}
+          <button 
+            onClick={openGoogleMaps}
+            className="mt-4 w-full flex items-center justify-center gap-2 bg-zinc-50 hover:bg-rose-50 text-zinc-700 hover:text-[#C72C48] py-3 rounded-xl font-bold text-sm transition-colors border border-zinc-200 hover:border-rose-200 active:scale-95"
+          >
+            <Navigation size={16} />
+            Get Directions
+          </button>
+
+          <p className="text-zinc-600 text-sm mt-5 leading-relaxed border-b border-zinc-100 pb-5 mb-5">
+            {cafe.description || "Experience the finest atmosphere and exceptional service at our premium location. Join our exclusive membership to unlock special rewards."}
           </p>
 
-          {/* === MEMBERSHIP STATUS === */}
+          {/* --- MEMBERSHIP STATUS --- */}
           {isMember ? (
             <motion.button
               whileTap={{ scale: 0.98 }}
               onClick={() => router.push(`/dashboard/cards/${memberCard.id}`)}
-              className="w-full bg-[#18181B] text-white py-4 rounded-2xl font-bold flex items-center justify-between px-6 shadow-lg shadow-zinc-900/20"
+              className="w-full bg-gradient-to-r from-zinc-900 to-zinc-800 text-white py-4 rounded-2xl font-bold flex items-center justify-between px-6 shadow-lg shadow-zinc-900/20"
             >
               <div className="flex items-center gap-3">
-                <CreditCard size={20} className="text-[#C72C48]" />
+                <div className="p-2 bg-white/10 rounded-full">
+                   <CreditCard size={18} className="text-rose-300" />
+                </div>
                 <div className="text-left">
-                  <p className="text-xs text-zinc-400 uppercase tracking-wider">Member ID</p>
-                  <p className="text-sm font-mono tracking-widest">{memberCard.cardSerial}</p>
+                  <p className="text-[10px] text-zinc-400 uppercase tracking-widest">Active Member</p>
+                  <p className="text-sm font-mono tracking-widest text-rose-50">{memberCard.cardSerial || "VIEW CARD"}</p>
                 </div>
               </div>
               <ChevronRight size={18} className="text-zinc-500" />
             </motion.button>
           ) : (
-            <div className="bg-rose-50 border border-rose-100 p-5 rounded-2xl text-center">
-              <div className="w-12 h-12 bg-white rounded-full flex items-center justify-center mx-auto mb-3 text-[#C72C48] shadow-sm">
-                <Lock size={20} />
+            <div className="bg-gradient-to-br from-rose-50 to-white border border-rose-100 p-5 rounded-2xl text-center shadow-inner">
+              <div className="w-12 h-12 bg-white rounded-full flex items-center justify-center mx-auto mb-3 text-[#C72C48] shadow-sm border border-rose-50">
+                <Lock size={18} />
               </div>
-              <p className="text-[#C72C48] font-bold text-sm mb-1">Members Only Area</p>
-              <p className="text-zinc-500 text-xs mb-4 leading-relaxed">
-                Join {cafe.name} to unlock exclusive rewards, digital stamp card, and table reservations.
+              <p className="text-zinc-900 font-bold text-sm mb-1">Exclusive Access</p>
+              <p className="text-zinc-500 text-xs mb-4 leading-relaxed px-2">
+                Join {cafe.name} to unlock your digital premium pass and start earning rewards.
               </p>
-              <Button 
+              <button 
                 onClick={handleJoin} 
                 disabled={joining}
-                className="w-full bg-[#C72C48] hover:bg-[#A01B30] text-white h-12 rounded-xl text-sm font-bold shadow-lg shadow-red-200"
+                className="w-full bg-[#C72C48] hover:bg-[#b5253f] text-white h-12 rounded-xl text-sm font-bold shadow-lg shadow-rose-200 flex items-center justify-center gap-2 transition-colors active:scale-95"
               >
-                {joining ? <Loader2 className="animate-spin" /> : "Unlock Membership"}
-              </Button>
+                {joining ? <Loader2 className="animate-spin" size={18} /> : "Unlock Membership"}
+              </button>
             </div>
           )}
         </div>
 
-        {/* === RESERVATION (LOCKED IF NOT MEMBER) === */}
-        {isMember && (
-          <div className="mt-6">
-            <h2 className="text-lg font-bold text-zinc-900 mb-4 px-1">Reserve a Table</h2>
-            <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-zinc-100 space-y-5">
-              
-              <div>
-                <label className="text-xs font-bold text-zinc-400 uppercase tracking-wider">Date & Time</label>
-                <div className="flex items-center gap-3 mt-2 bg-zinc-50 p-3 rounded-xl border border-zinc-200 focus-within:border-[#C72C48] transition-colors">
-                  <Calendar size={18} className="text-zinc-400" />
-                  <input 
-                    type="datetime-local" 
-                    className="bg-transparent w-full outline-none text-sm text-zinc-900"
-                    onChange={(e) => setDate(e.target.value)}
-                  />
+        {/* --- DYNAMIC MENU SECTION --- */}
+        <div>
+          <div className="flex items-center justify-between mb-4 px-2">
+             <div className="flex items-center gap-2">
+                 <Coffee size={18} className="text-[#C72C48]" />
+                 <h2 className="text-lg font-bold text-zinc-900 font-serif tracking-tight">
+                    {cafe.plan === "STARTER" ? "Special Dishes" : "Menu Highlights"}
+                 </h2>
+             </div>
+             
+             {/* FILTER TOGGLE (VISIBLE ON GROWTH/CUSTOM, not STARTER) */}
+             {cafe.plan !== "STARTER" && (
+                <div className="flex bg-zinc-100 p-1 rounded-full border border-zinc-200 shadow-inner">
+                   {(["ALL", "VEG", "NON-VEG"] as const).map(type => (
+                      <button
+                        key={type}
+                        onClick={() => setFilter(type)}
+                        className={`text-[10px] font-bold px-3 py-1.5 rounded-full transition-all ${
+                           filter === type 
+                            ? "bg-white text-zinc-900 shadow-sm" 
+                            : "text-zinc-400 hover:text-zinc-600"
+                        }`}
+                      >
+                         {type}
+                      </button>
+                   ))}
                 </div>
-              </div>
-
-              <div>
-                <label className="text-xs font-bold text-zinc-400 uppercase tracking-wider">Guests</label>
-                <div className="flex items-center gap-3 mt-2 overflow-x-auto no-scrollbar pb-1">
-                  {[1, 2, 3, 4, 5, 6].map(num => (
-                    <button 
-                      key={num}
-                      onClick={() => setGuests(num)}
-                      className={`h-10 min-w-[40px] rounded-xl font-bold text-sm transition-all ${
-                        guests === num 
-                          ? "bg-zinc-900 text-white shadow-md" 
-                          : "bg-zinc-50 text-zinc-500 border border-zinc-200"
-                      }`}
-                    >
-                      {num}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <Button onClick={handleReserve} className="w-full h-12 rounded-xl bg-zinc-900 hover:bg-black text-white font-bold shadow-lg">
-                Confirm Reservation
-              </Button>
-            </div>
+             )}
           </div>
-        )}
+          
+          <div className="space-y-3">
+            <AnimatePresence mode="popLayout">
+                {displayMenu.length === 0 ? (
+                   <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="text-center py-6 text-zinc-400 text-sm border border-dashed border-zinc-200 rounded-2xl">
+                      No items available in this category.
+                   </motion.div>
+                ) : (
+                    displayMenu.map((item) => (
+                    <motion.div 
+                        layout
+                        initial={{ opacity: 0, scale: 0.95 }} 
+                        animate={{ opacity: 1, scale: 1 }} 
+                        exit={{ opacity: 0, scale: 0.95 }}
+                        transition={{ duration: 0.2 }}
+                        key={item.id} 
+                        className="bg-white p-4 rounded-2xl border border-zinc-100 shadow-sm hover:shadow-md transition-shadow relative overflow-hidden group"
+                    >
+                        <div className="flex justify-between items-start mb-1">
+                        <div className="flex items-start gap-2">
+                            <div className="mt-1"><DietIcon type={item.type} /></div>
+                            <div>
+                                <h3 className="font-bold text-zinc-900 leading-tight pr-2 group-hover:text-[#C72C48] transition-colors">{item.name}</h3>
+                                {item.tag && (
+                                <span className="inline-block mt-1 text-[9px] font-bold uppercase tracking-wider bg-rose-50 text-[#C72C48] px-2 py-0.5 rounded-md border border-rose-100">
+                                    {item.tag}
+                                </span>
+                                )}
+                            </div>
+                        </div>
+                        <span className="font-bold text-zinc-900 bg-zinc-50 border border-zinc-100 px-2 py-1 rounded-lg text-sm shrink-0">{item.price}</span>
+                        </div>
+                        <p className="text-xs text-zinc-500 leading-relaxed mt-2 pl-5 pr-4">
+                        {item.description}
+                        </p>
+                    </motion.div>
+                    ))
+                )}
+            </AnimatePresence>
+          </div>
+        </div>
+
       </div>
     </div>
   );

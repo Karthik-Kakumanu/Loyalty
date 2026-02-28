@@ -15,7 +15,9 @@ import {
   Loader2,
   CheckCircle2,
   Coffee,
-  Ghost
+  Ghost,
+  Eye, 
+  ArrowRight 
 } from "lucide-react";
 import { getDashboardData, searchCafes, joinCafe } from "@/actions/dashboard"; 
 import { useRouter } from "next/navigation";
@@ -29,6 +31,7 @@ type Cafe = {
   rating: number;
   lat: number | null;
   lng: number | null;
+  description?: string;
 };
 
 type LoyaltyCard = {
@@ -39,14 +42,12 @@ type LoyaltyCard = {
   cafe: Cafe;
 };
 
-// --- TABS CONFIGURATION ---
 const TABS = [
-  { id: "cards", label: "My Cards", icon: CreditCard }, // Shortened label for better mobile fit
+  { id: "cards", label: "My Cards", icon: CreditCard }, 
   { id: "trending", label: "Trending", icon: Flame },
   { id: "nearby", label: "Nearby", icon: Navigation },
 ];
 
-// --- UTILS ---
 function calculateDistance(lat1: number | null, lon1: number | null, lat2: number | null, lon2: number | null) {
   if (!lat1 || !lon1 || !lat2 || !lon2) return null;
   const R = 6371; 
@@ -59,7 +60,6 @@ function calculateDistance(lat1: number | null, lon1: number | null, lat2: numbe
   return (R * c).toFixed(1);
 }
 
-// --- SKELETON LOADER ---
 const DashboardSkeleton = () => (
   <div className="space-y-6 px-5 md:px-0 pt-4">
     <div className="h-12 w-full bg-zinc-100 rounded-2xl animate-pulse" />
@@ -83,7 +83,6 @@ export default function Dashboard() {
   const [unlockModal, setUnlockModal] = useState<Cafe | null>(null);
   const [isUnlocking, setIsUnlocking] = useState(false);
 
-  // --- DATA FETCHING ---
   const fetchData = useCallback(async () => {
     try {
       const res = await getDashboardData();
@@ -93,7 +92,6 @@ export default function Dashboard() {
           trending: res.trending || [],
           allCafes: res.allCafes || []
         });
-        // Auto-switch to cards if user has them
         if (res.myCards && res.myCards.length > 0) setActiveTab("cards");
       }
     } catch (error) {
@@ -113,7 +111,6 @@ export default function Dashboard() {
     }
   }, [fetchData]);
 
-  // --- SEARCH LOGIC ---
   useEffect(() => {
     const delay = setTimeout(async () => {
       if (searchQuery.trim()) {
@@ -126,7 +123,6 @@ export default function Dashboard() {
     return () => clearTimeout(delay);
   }, [searchQuery]);
 
-  // --- UNLOCK ACTION ---
   const handleUnlock = async (cafeId: string) => {
     if(isUnlocking) return;
     setIsUnlocking(true);
@@ -146,7 +142,14 @@ export default function Dashboard() {
     }
   };
 
-  // --- STYLING HELPERS ---
+  const navigateToCafe = (cafeId: string) => {
+    router.push(`/dashboard/cafe/${cafeId}`);
+  };
+
+  const navigateToCard = (cardId: string) => {
+    router.push(`/dashboard/cards/${cardId}`);
+  };
+
   const getBgStyle = (imageString: string | null | undefined) => {
     if (imageString?.startsWith("http") || imageString?.startsWith("/")) {
       return { backgroundImage: `url(${imageString})` };
@@ -165,7 +168,7 @@ export default function Dashboard() {
   return (
     <div className="min-h-screen w-full relative pb-24">
       
-      {/* --- SEARCH BAR (Smart Sticky) --- */}
+      {/* SEARCH BAR */}
       <div className="sticky top-[-1px] md:top-0 z-30 bg-[#F8F9FA]/95 backdrop-blur-md py-4 md:pt-0 px-5 md:px-0 transition-all duration-300">
         <div className="relative">
           <div className="flex items-center bg-white border border-zinc-200 rounded-full px-4 py-3.5 shadow-sm focus-within:ring-2 focus-within:ring-[#C72C48]/20 focus-within:border-[#C72C48] transition-all">
@@ -184,7 +187,6 @@ export default function Dashboard() {
             )}
           </div>
 
-          {/* Search Dropdown */}
           <AnimatePresence>
             {searchResults.length > 0 && (
               <motion.div 
@@ -212,7 +214,7 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* --- REDESIGNED PREMIUM TABS --- */}
+      {/* TABS */}
       <div className="mb-6 px-5 md:px-0">
         <div className="relative flex items-center bg-zinc-200/60 p-1 rounded-full overflow-hidden shadow-inner">
           {TABS.map((tab) => {
@@ -242,7 +244,7 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* --- CONTENT AREA --- */}
+      {/* CONTENT AREA */}
       <div className="px-5 md:px-0 min-h-[40vh]">
         <AnimatePresence mode="wait">
           
@@ -264,8 +266,11 @@ export default function Dashboard() {
                 </div>
               ) : (
                 data.myCards.map((card: LoyaltyCard) => (
-                  <div key={card.id} className="relative w-full h-48 rounded-[32px] overflow-hidden shadow-lg shadow-zinc-200 group bg-zinc-900 cursor-pointer active:scale-[0.98] transition-transform">
-                    {/* Background */}
+                  <div 
+                    key={card.id} 
+                    onClick={() => navigateToCard(card.id)} // CLICK GOES TO STAMPS
+                    className="relative w-full h-48 rounded-[32px] overflow-hidden shadow-lg shadow-zinc-200 group bg-zinc-900 cursor-pointer active:scale-[0.98] transition-transform"
+                  >
                     <div 
                       className={`absolute inset-0 bg-cover bg-center transition-transform duration-700 group-hover:scale-110 ${getImageClass(card.cafe.image)}`} 
                       style={getBgStyle(card.cafe.image)}
@@ -283,9 +288,16 @@ export default function Dashboard() {
                               : "Nearby"}
                           </p>
                         </div>
-                        <div className="bg-white/20 backdrop-blur-md p-2 rounded-full border border-white/10">
-                          <Coffee size={18} />
-                        </div>
+                        {/* VIEW BUTTON - STOPS PROPAGATION */}
+                        <button
+                          onClick={(e) => {
+                             e.stopPropagation();
+                             navigateToCafe(card.cafe.id);
+                          }}
+                          className="bg-white/20 backdrop-blur-md p-2 rounded-full border border-white/10 hover:bg-white/30 transition-colors z-20"
+                        >
+                          <Eye size={18} /> 
+                        </button>
                       </div>
 
                       <div>
@@ -306,7 +318,7 @@ export default function Dashboard() {
             </motion.div>
           )}
 
-          {/* 2. TRENDING / NEARBY (Reused Grid Layout) */}
+          {/* 2. TRENDING / NEARBY */}
           {(activeTab === "trending" || activeTab === "nearby") && (
             <motion.div 
               key={activeTab}
@@ -319,8 +331,8 @@ export default function Dashboard() {
                  return (
                 <div 
                   key={cafe.id} 
-                  onClick={() => !isMember && setUnlockModal(cafe)}
                   className="bg-white p-2.5 rounded-[28px] border border-zinc-100 shadow-sm flex flex-col gap-2 active:scale-95 transition-transform hover:shadow-lg cursor-pointer relative overflow-hidden group"
+                  onClick={() => !isMember ? setUnlockModal(cafe) : navigateToCafe(cafe.id)}
                 >
                   <div className="absolute top-4 right-4 bg-black/60 backdrop-blur-md text-white p-1.5 rounded-full z-10 shadow-sm">
                     {isMember ? <CheckCircle2 size={12} className="text-emerald-400"/> : <Lock size={12} />}
@@ -343,7 +355,15 @@ export default function Dashboard() {
                     <div className="flex items-center gap-1 text-[10px] font-bold text-zinc-600 bg-zinc-50 px-2 py-1 rounded-lg border border-zinc-100">
                       <Star size={10} className="fill-amber-400 text-amber-400" /> {cafe.rating}
                     </div>
-                    {!isMember && (
+                    
+                    {isMember ? (
+                       <button 
+                         onClick={(e) => { e.stopPropagation(); navigateToCafe(cafe.id); }}
+                         className="text-[10px] font-bold text-zinc-700 bg-zinc-100 px-2 py-1 rounded-lg hover:bg-zinc-200 transition-colors flex items-center gap-1"
+                       >
+                         View
+                       </button>
+                    ) : (
                         <span className="text-[10px] font-bold text-[#C72C48] bg-rose-50 px-2 py-1 rounded-lg">
                             Unlock
                         </span>
@@ -357,7 +377,7 @@ export default function Dashboard() {
         </AnimatePresence>
       </div>
 
-      {/* --- UNLOCK MODAL --- */}
+      {/* UNLOCK MODAL */}
       <AnimatePresence>
         {unlockModal && (
           <div className="fixed inset-0 z-[100] flex items-end md:items-center justify-center p-4">
@@ -384,7 +404,6 @@ export default function Dashboard() {
                               <span className="bg-white/20 backdrop-blur-md px-2 py-0.5 rounded-md flex items-center gap-1">
                                 <Star size={12} className="fill-yellow-400 text-yellow-400" /> {unlockModal.rating}
                               </span>
-                              <span>• {unlockModal.address}</span>
                            </div>
                       </div>
                   </div>
@@ -395,15 +414,24 @@ export default function Dashboard() {
                     </div>
                     <h3 className="text-xl font-bold text-zinc-900">Unlock Membership?</h3>
                     <p className="text-sm text-zinc-500 mt-2 mb-6 leading-relaxed px-4">
-                      Join <strong>{unlockModal.name}</strong> to get a digital card and start earning rewards immediately.
+                      Join <strong>{unlockModal.name}</strong> to get a digital card.
                     </p>
-                    <button 
-                      onClick={() => handleUnlock(unlockModal.id)}
-                      disabled={isUnlocking}
-                      className="w-full bg-[#C72C48] text-white font-bold py-4 rounded-2xl shadow-lg shadow-red-200 active:scale-95 transition-all disabled:opacity-70 disabled:scale-100 flex items-center justify-center gap-2 text-sm"
-                    >
-                      {isUnlocking ? <Loader2 className="animate-spin" size={20} /> : "Join & Unlock Card"}
-                    </button>
+                    
+                    <div className="flex gap-3">
+                        <button 
+                          onClick={() => { setUnlockModal(null); navigateToCafe(unlockModal.id); }}
+                          className="flex-1 bg-zinc-100 text-zinc-700 font-bold py-4 rounded-2xl active:scale-95 transition-all text-sm"
+                        >
+                          View Details
+                        </button>
+                        <button 
+                          onClick={() => handleUnlock(unlockModal.id)}
+                          disabled={isUnlocking}
+                          className="flex-[1.5] bg-[#C72C48] text-white font-bold py-4 rounded-2xl shadow-lg shadow-red-200 active:scale-95 transition-all disabled:opacity-70 disabled:scale-100 flex items-center justify-center gap-2 text-sm"
+                        >
+                          {isUnlocking ? <Loader2 className="animate-spin" size={20} /> : "Join & Unlock"}
+                        </button>
+                    </div>
                   </div>
                </div>
             </motion.div>

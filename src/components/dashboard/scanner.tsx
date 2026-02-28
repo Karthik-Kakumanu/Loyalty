@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { X, AlertCircle, Loader2 } from "lucide-react";
 import { Scanner as QrScanner } from "@yudiel/react-qr-scanner";
 import { useRouter } from "next/navigation";
-import { joinCafeWithSerial } from "@/actions/cafe"; // Use the new action
+import { joinCafeWithSerial } from "@/actions/cafe"; 
 
 interface ScannerProps {
   isOpen: boolean;
@@ -21,31 +21,51 @@ export function Scanner({ isOpen, onClose, onScan }: ScannerProps) {
 
   useEffect(() => { setMounted(true); }, []);
 
+  // --- THE FIX: RESET STATE ON OPEN ---
+  useEffect(() => {
+    if (isOpen) {
+      setIsProcessing(false);
+      setError(null);
+    }
+  }, [isOpen]);
+
   const handleScan = async (rawValue: string) => {
     if (isProcessing || !rawValue) return; 
+    
+    // Prevent scanning if just https:// (wait for specific format)
+    // Optional: Add specific checks if needed
+    
     setIsProcessing(true);
 
     try {
-      // Parse ID: expects "REVISTRA://cafe/CL_ID" OR just "CL_ID"
-      const cafeId = rawValue.replace("REVISTRA://cafe/", ""); 
+      // Parse ID: Clean up the URL scheme
+      const cafeId = rawValue
+        .replace("REVISTRA://cafe/", "")
+        .replace("loyaltyapp://cafe/", ""); 
 
-      // CALL NEW ACTION
       const result = await joinCafeWithSerial(cafeId);
 
       if (result.success) {
         onScan(cafeId); 
         onClose(); 
         router.refresh();
-        // Redirect to the newly created card
+        // Redirect to the newly created stamp card
         router.push(`/dashboard/cards/${result.cardId}`); 
       } else {
         setError(result.error || "Invalid QR Code");
-        setTimeout(() => { setError(null); setIsProcessing(false); }, 3000);
+        // Reset after 3 seconds so they can try again
+        setTimeout(() => { 
+            setError(null); 
+            setIsProcessing(false); 
+        }, 3000);
       }
     } catch (e) {
       console.error(e);
       setError("Failed to process code");
-      setTimeout(() => { setError(null); setIsProcessing(false); }, 3000);
+      setTimeout(() => { 
+          setError(null); 
+          setIsProcessing(false); 
+      }, 3000);
     }
   };
 
@@ -79,7 +99,7 @@ export function Scanner({ isOpen, onClose, onScan }: ScannerProps) {
                />
             </div>
 
-            {/* Error & Loading UI */}
+            {/* Error UI */}
             <AnimatePresence>
                 {error && (
                 <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 10 }} className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-30 bg-red-500/90 backdrop-blur-md text-white px-6 py-3 rounded-2xl flex items-center gap-2 shadow-xl">
@@ -88,6 +108,7 @@ export function Scanner({ isOpen, onClose, onScan }: ScannerProps) {
                 )}
             </AnimatePresence>
 
+            {/* Loading UI */}
             {isProcessing && !error && (
                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-30 bg-black/70 backdrop-blur-md text-white px-8 py-4 rounded-2xl flex flex-col items-center gap-3">
                  <Loader2 className="w-8 h-8 animate-spin text-[#C72C48]" />

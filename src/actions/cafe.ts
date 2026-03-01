@@ -1,8 +1,25 @@
 "use server";
 
+import { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import { getSession } from "@/lib/session";
 import { revalidatePath } from "next/cache";
+
+function formatCardSerial(prefix: string | null | undefined, sequence: number) {
+  const normalizedPrefix = (prefix || "MEM").trim().toUpperCase();
+  return `${normalizedPrefix}${String(sequence).padStart(4, "0")}`;
+}
+
+async function allocateNextCardSerial(tx: Prisma.TransactionClient, cafeId: string) {
+  const updatedCafe = await tx.cafe.update({
+    where: { id: cafeId },
+    data: { nextCardSeq: { increment: 1 } },
+    select: { cardPrefix: true, nextCardSeq: true },
+  });
+
+  // nextCardSeq is already incremented; allocated sequence is the previous value.
+  return formatCardSerial(updatedCafe.cardPrefix, updatedCafe.nextCardSeq - 1);
+}
 
 // 1. JOIN CAFE & GENERATE UNIQUE SERIAL CARD (CR0001, XX0013)
 export async function joinCafeWithSerial(cafeId: string) {
@@ -10,50 +27,55 @@ export async function joinCafeWithSerial(cafeId: string) {
     const session = await getSession();
     if (!session?.userId) return { success: false, error: "Unauthorized" };
 
-    // Use a transaction to ensure atomic updates (no duplicate IDs)
+    // Use one transaction so sequence allocation and card creation are always consistent.
     const result = await db.$transaction(async (tx) => {
-      // Check if already a member
+      const cafeExists = await tx.cafe.findUnique({
+        where: { id: cafeId },
+        select: { id: true },
+      });
+      if (!cafeExists) throw new Error("Cafe not found");
+
+      // Check if already a member.
       const existing = await tx.loyaltyCard.findUnique({
         where: {
-          userId_cafeId: { userId: session.userId, cafeId }
-        }
+          userId_cafeId: { userId: session.userId, cafeId },
+        },
       });
 
-      if (existing) return existing; // Return existing card if found
+      if (existing?.cardSerial) {
+        return existing;
+      }
 
-      // A. Get Cafe details for Prefix and Sequence
-      const cafe = await tx.cafe.findUnique({ where: { id: cafeId } });
-      if (!cafe) throw new Error("Cafe not found");
+      // Allocate serial atomically from cafe.nextCardSeq.
+      const serialNumber = await allocateNextCardSerial(tx, cafeId);
 
-      // B. Generate Serial (e.g., "CR" + "0001")
-      const prefix = cafe.cardPrefix || "MEM";
-      const sequence = String(cafe.nextCardSeq).padStart(4, '0');
-      const serialNumber = `${prefix}${sequence}`;
+      if (existing) {
+        return tx.loyaltyCard.update({
+          where: { id: existing.id },
+          data: { cardSerial: serialNumber },
+        });
+      }
 
-      // C. Create the Card
+      // Create membership card.
       const newCard = await tx.loyaltyCard.create({
         data: {
           userId: session.userId,
-          cafeId: cafe.id,
+          cafeId,
           cardSerial: serialNumber,
           stamps: 0,
           maxStamps: 10,
           tier: "Silver",
-          balance: 0
-        }
-      });
-
-      // D. Increment the Cafe's sequence for the NEXT person
-      await tx.cafe.update({
-        where: { id: cafeId },
-        data: { nextCardSeq: { increment: 1 } }
+          balance: 0,
+        },
       });
 
       return newCard;
     });
 
     revalidatePath("/dashboard");
-    return { success: true, cardId: result.id };
+    revalidatePath("/dashboard/cards");
+    revalidatePath(`/dashboard/cafe/${cafeId}`);
+    return { success: true, cardId: result.id, cardSerial: result.cardSerial };
 
   } catch (error) {
     console.error("Join Error:", error);
@@ -99,7 +121,7 @@ export async function reserveTable(cafeId: string, date: Date, guests: number) {
     revalidatePath(`/dashboard/cafe/${cafeId}`);
     revalidatePath(`/dashboard/reserve`);
     return { success: true };
-  } catch (error) {
+  } catch {
     return { success: false, error: "Reservation failed" };
   }
 }

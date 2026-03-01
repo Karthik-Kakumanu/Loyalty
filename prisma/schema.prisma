@@ -103,6 +103,7 @@ model LoyaltyCard {
   updatedAt   DateTime @updatedAt
 
   @@unique([userId, cafeId])
+  @@unique([cafeId, cardSerial])
 }
 
 model StampHistory {

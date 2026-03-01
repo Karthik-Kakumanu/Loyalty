@@ -6,6 +6,7 @@ import Image from "next/image";
 import { motion } from "framer-motion";
 import { ChevronLeft, Loader2, CreditCard, MessageSquareText } from "lucide-react";
 import { getDashboardData } from "@/actions/dashboard";
+import { getCafeLogoByName, getCafeStampIconByName } from "@/features/cafe/config/branding";
 
 type LoyaltyCardData = {
   id: string;
@@ -88,8 +89,16 @@ export default function LoyaltyCardPage() {
 
   if (!card) {
     return (
-      <div className="h-screen bg-[#fbf6ef] text-[#5B2D27] flex items-center justify-center font-semibold">
-        Card not found
+      <div className="h-screen bg-[#fbf6ef] px-4 text-[#5B2D27]">
+        <div className="mx-auto flex h-full w-full max-w-lg flex-col items-center justify-center gap-4 text-center">
+          <p className="text-lg font-semibold">Card not found</p>
+          <button
+            onClick={() => router.push("/dashboard/cards")}
+            className="rounded-xl bg-[#C06A54] px-5 py-2.5 text-sm font-semibold text-white transition hover:brightness-95"
+          >
+            Go to My Cards
+          </button>
+        </div>
       </div>
     );
   }
@@ -98,6 +107,8 @@ export default function LoyaltyCardPage() {
   const cappedStamps = Math.min(card.stamps || 0, STARTER_STAMP_COUNT);
   const remaining = Math.max(STARTER_STAMP_COUNT - cappedStamps, 0);
   const progressPercentage = Math.min((cappedStamps / STARTER_STAMP_COUNT) * 100, 100);
+  const logoSrc = getCafeLogoByName(card.cafe.name);
+  const stampIconSrc = getCafeStampIconByName(card.cafe.name);
 
   return (
     <div className="min-h-screen bg-[#fbf6ef] text-[#5B2D27] px-4 pb-24 pt-6 selection:bg-[#C06A54] selection:text-white">
@@ -130,10 +141,10 @@ export default function LoyaltyCardPage() {
 
             <div className="relative h-14 w-14 overflow-hidden rounded-full border border-[#e8c7a8] bg-white">
               <Image
-                src="/logo.png"
+                src={logoSrc}
                 alt="Cafe brand logo"
                 fill
-                className="object-cover"
+                className="object-contain p-1.5"
                 sizes="56px"
               />
             </div>
@@ -182,7 +193,13 @@ export default function LoyaltyCardPage() {
                   className={`aspect-square rounded-full border ${filled ? "border-[#c06a54] bg-[#f4d9c8]" : "border-[#ead7c2] bg-[#faf3ea]"} flex items-center justify-center`}
                 >
                   {filled ? (
-                    <Image src="/logo.png" alt="Collected stamp" width={20} height={20} className="rounded-full" />
+                    <Image
+                      src={stampIconSrc}
+                      alt="Collected stamp"
+                      width={20}
+                      height={20}
+                      className="rounded-full object-contain"
+                    />
                   ) : (
                     <span className="text-[10px] font-bold text-[#b58c80]">{i + 1}</span>
                   )}

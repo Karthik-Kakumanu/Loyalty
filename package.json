@@ -6,7 +6,8 @@
     "dev": "next dev --webpack",
     "build": "prisma generate && next build --webpack",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "backfill:card-serials": "tsx prisma/backfill-card-serials.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.0",

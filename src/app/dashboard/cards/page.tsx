@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import Image from "next/image";
 import { 
   Coffee, 
   Plus, 
@@ -12,6 +13,7 @@ import {
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { getDashboardData } from "@/actions/dashboard";
+import { getCafeLogoByName } from "@/features/cafe/config/branding";
 
 // --- Types ---
 interface LoyaltyCard {
@@ -27,9 +29,6 @@ interface LoyaltyCard {
     rating: number;
   };
 }
-
-// --- Constants ---
-const BRAND_COLOR = "#C72C48";
 
 // --- Helper: Premium Gradient Generator ---
 const getCardGradient = (name: string) => {
@@ -82,7 +81,7 @@ export default function CardsPage() {
       try {
         const data = await getDashboardData();
         if (data && data.myCards) {
-          const formattedCards = data.myCards.map((card: any) => ({
+          const formattedCards = (data.myCards as LoyaltyCard[]).map((card) => ({
             ...card,
             maxStamps: card.maxStamps || 10,
             tier: card.tier || "Member",
@@ -164,6 +163,7 @@ export default function CardsPage() {
               {cards.map((card, index) => {
                 const isEligibleForReward = card.stamps >= card.maxStamps;
                 const gradient = getCardGradient(card.cafe.name);
+                const cafeLogo = getCafeLogoByName(card.cafe.name);
 
                 return (
                   <motion.div
@@ -208,8 +208,18 @@ export default function CardsPage() {
                         </div>
                         
                         {/* Cafe Icon */}
-                        <div className="w-12 h-12 bg-white/10 backdrop-blur-md rounded-2xl flex items-center justify-center border border-white/10 shadow-inner flex-shrink-0">
-                          <Coffee size={24} className="text-white/90" />
+                        <div className="relative h-12 w-12 overflow-hidden rounded-2xl border border-white/10 bg-white/10 shadow-inner backdrop-blur-md flex-shrink-0">
+                          {cafeLogo === "/logo.jpg" ? (
+                            <Coffee size={24} className="absolute inset-0 m-auto text-white/90" />
+                          ) : (
+                            <Image
+                              src={cafeLogo}
+                              alt={`${card.cafe.name} logo`}
+                              fill
+                              className="object-contain p-2"
+                              sizes="48px"
+                            />
+                          )}
                         </div>
                       </div>
 

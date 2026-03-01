@@ -2,7 +2,7 @@
 
 import { db } from "@/lib/db";
 import { getSession } from "@/lib/session";
-import { revalidatePath } from "next/cache";
+import { joinCafeWithSerial } from "@/actions/cafe";
 
 // 1. Get Dashboard Data
 export async function getDashboardData() {
@@ -65,35 +65,8 @@ export async function searchCafes(query: string) {
 
 // 3. Unlock/Join Cafe
 export async function joinCafe(cafeId: string) {
-  try {
-    const session = await getSession();
-    if (!session) return { success: false, error: "Unauthorized" };
-
-    // Check if already joined
-    const existing = await db.loyaltyCard.findFirst({
-        where: { userId: session.userId, cafeId: cafeId }
-    });
-
-    if (existing) return { success: true, message: "Already a member" };
-
-    // Create new card
-    await db.loyaltyCard.create({
-      data: {
-        userId: session.userId,
-        cafeId: cafeId,
-        stamps: 0,
-        maxStamps: 10, 
-        tier: "Member", 
-        balance: 0
-      }
-    });
-
-    revalidatePath("/dashboard"); 
-    return { success: true };
-  } catch (error) {
-    console.error("Failed to join cafe:", error);
-    return { success: false, error: "Failed to unlock membership" };
-  }
+  // Keep this wrapper for existing UI imports, but use the serial-safe join flow.
+  return joinCafeWithSerial(cafeId);
 }
 
 // ... existing imports in src/actions/dashboard.ts

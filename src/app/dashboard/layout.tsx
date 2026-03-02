@@ -1,144 +1,162 @@
+// file: src/app/dashboard/layout.tsx
 "use client";
 
 import { useCallback, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
-import { 
-  Home, 
-  CalendarDays, 
-  ScanLine, 
-  CreditCard, 
-  Star, 
-  User, 
+import {
+  Home,
+  CalendarDays,
+  ScanLine,
+  CreditCard,
+  Star,
+  User,
   Settings
 } from "lucide-react";
 import { Scanner } from "@/components/dashboard/scanner";
 import { DashboardMobileHeader } from "@/components/layout/dashboard-mobile-header";
 
-const TABS = [
+type TabConfig = {
+  name: string;
+  href: string;
+  icon: typeof Home;
+  isSpecial?: boolean;
+};
+
+const TABS: TabConfig[] = [
   { name: "Home", href: "/dashboard", icon: Home },
   { name: "Reserve", href: "/dashboard/reserve", icon: CalendarDays },
   { name: "Scan", href: "#scan", icon: ScanLine, isSpecial: true },
   { name: "Cards", href: "/dashboard/cards", icon: CreditCard },
-  { name: "Loyalty", href: "/dashboard/loyalty", icon: Star },
-] as const;
+  { name: "Loyalty", href: "/dashboard/loyalty", icon: Star }
+];
 
-export default function DashboardLayout({ children }: { children: React.ReactNode }) {
+export default function DashboardLayout(props: { children: React.ReactNode }) {
+  const { children } = props;
   const pathname = usePathname();
-  const router = useRouter(); 
+  const router = useRouter();
   const [isScannerOpen, setIsScannerOpen] = useState(false);
+
   const openScanner = useCallback(() => setIsScannerOpen(true), []);
   const closeScanner = useCallback(() => setIsScannerOpen(false), []);
-  const openSettings = useCallback(() => router.push("/dashboard/settings"), [router]);
-  const navigateTo = useCallback((href: string) => router.push(href), [router]);
-  const handleScan = useCallback((data: string) => {
-    console.log("Scanned:", data);
-    closeScanner();
-  }, [closeScanner]);
+  const openSettings = useCallback(
+    () => router.push("/dashboard/settings"),
+    [router]
+  );
+  const navigateTo = useCallback(
+    (href: string) => router.push(href),
+    [router]
+  );
+  const handleScan = useCallback(
+    (data: string) => {
+      console.log("Scanned:", data);
+      closeScanner();
+    },
+    [closeScanner]
+  );
 
   return (
-    <div className="min-h-dvh bg-[#F8F9FA] font-sans text-zinc-900 flex flex-col md:flex-row">
-      
-      {/* ==================================================================
-          DESKTOP SIDEBAR (Visible on Tablet/Desktop, Hidden on Mobile)
-         ================================================================== */}
-      <aside className="hidden md:flex flex-col w-64 bg-white border-r border-zinc-200 fixed inset-y-0 left-0 z-50 shadow-[4px_0_24px_rgba(0,0,0,0.02)]">
-        
-        {/* Logo Area */}
-        <div className="p-6 flex items-center gap-3">
-          <div className="w-10 h-10 bg-[#C72C48] rounded-xl flex items-center justify-center text-white font-bold text-xl shadow-md shadow-red-200">
+    <div className="flex min-h-dvh flex-col bg-[#F8F9FA] font-sans text-zinc-900 md:flex-row">
+      <aside className="fixed inset-y-0 left-0 z-50 hidden w-64 flex-col border-r border-zinc-200 bg-white shadow-[4px_0_24px_rgba(0,0,0,0.02)] md:flex">
+        <div className="flex items-center gap-3 p-6">
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#C72C48] text-xl font-bold text-white shadow-md shadow-red-200">
             L
           </div>
-          <span className="font-bold text-xl tracking-tight text-zinc-900">Revistra</span>
+          <span className="text-xl font-bold tracking-tight text-zinc-900">
+            Revistra
+          </span>
         </div>
 
-        {/* Desktop Navigation Links */}
-        <nav className="flex-1 px-4 space-y-2 mt-4 overflow-y-auto">
+        <nav className="mt-4 flex-1 space-y-2 overflow-y-auto px-4">
           {TABS.map((tab) => {
-            if (tab.isSpecial) return null; // Skip Scan button in sidebar list (we use a special one if needed)
-
+            if (tab.isSpecial) return null;
             const isActive = pathname === tab.href;
-            
+            const Icon = tab.icon;
             return (
               <Link
                 key={tab.name}
                 href={tab.href}
-                className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-medium transition-all duration-200 group ${
-                  isActive 
-                    ? "bg-[#C72C48]/5 text-[#C72C48]" 
+                className={`group flex w-full items-center gap-3 rounded-xl px-4 py-3 font-medium transition-all duration-200 ${
+                  isActive
+                    ? "bg-[#C72C48]/5 text-[#C72C48]"
                     : "text-zinc-600 hover:bg-zinc-50 hover:text-zinc-900"
                 }`}
               >
-                <div className={`transition-transform duration-300 ${isActive ? "scale-110" : "group-hover:scale-110"}`}>
-                   <tab.icon size={20} strokeWidth={isActive ? 2.5 : 2} />
+                <div
+                  className={`transition-transform duration-300 ${
+                    isActive ? "scale-110" : "group-hover:scale-110"
+                  }`}
+                >
+                  <Icon size={20} strokeWidth={isActive ? 2.5 : 2} />
                 </div>
                 <span>{tab.name}</span>
-                {isActive && <div className="ml-auto w-1.5 h-1.5 rounded-full bg-[#C72C48]" />}
+                {isActive && (
+                  <div className="ml-auto h-1.5 w-1.5 rounded-full bg-[#C72C48]" />
+                )}
               </Link>
             );
           })}
-          
-          {/* Desktop Scan Button (Optional, if you want it in sidebar) */}
+
           <button
-             onClick={openScanner}
-             className="w-full flex items-center gap-3 px-4 py-3 rounded-xl font-medium transition-all duration-200 text-zinc-600 hover:bg-zinc-50 hover:text-[#C72C48] group mt-2"
+            type="button"
+            onClick={openScanner}
+            className="group mt-2 flex w-full items-center gap-3 rounded-xl px-4 py-3 text-sm font-medium text-zinc-600 transition-all duration-200 hover:bg-zinc-50 hover:text-[#C72C48]"
           >
-             <div className="p-1 group-hover:bg-[#C72C48]/10 rounded-lg transition-colors">
-                <ScanLine size={20} />
-             </div>
-             <span>Scan QR</span>
+            <div className="rounded-lg p-1 transition-colors group-hover:bg-[#C72C48]/10">
+              <ScanLine size={20} />
+            </div>
+            <span>Scan QR</span>
           </button>
         </nav>
 
-        {/* Desktop User Profile Section (Bottom of Sidebar) */}
-        <div className="p-4 border-t border-zinc-100 bg-white">
-          <button 
+        <div className="bg-white p-4">
+          <button
+            type="button"
             onClick={openSettings}
-            className="w-full flex items-center gap-3 p-3 rounded-xl hover:bg-zinc-50 transition-colors cursor-pointer group text-left border border-transparent hover:border-zinc-200"
+            className="group flex w-full cursor-pointer items-center gap-3 rounded-xl border border-transparent p-3 text-left transition-colors hover:border-zinc-200 hover:bg-zinc-50"
           >
-            <div className="w-10 h-10 bg-zinc-100 rounded-full flex items-center justify-center text-zinc-500 border border-zinc-200 group-hover:border-[#C72C48]/30 transition-colors shrink-0">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-zinc-200 bg-zinc-100 text-zinc-500 transition-colors group-hover:border-[#C72C48]/30">
               <User size={20} />
             </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-bold text-zinc-900 truncate">My Account</p>
-              <p className="text-xs text-zinc-500 truncate">Settings & Profile</p>
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-sm font-bold text-zinc-900">
+                My Account
+              </p>
+              <p className="truncate text-xs text-zinc-500">
+                Settings &amp; Profile
+              </p>
             </div>
-            <Settings size={16} className="text-zinc-400 group-hover:text-zinc-600 shrink-0" />
+            <Settings
+              size={16}
+              className="shrink-0 text-zinc-400 transition-colors group-hover:text-zinc-600"
+            />
           </button>
         </div>
       </aside>
 
-
-      {/* ==================================================================
-          MAIN CONTENT WRAPPER
-         ================================================================== */}
-      <div className="flex-1 flex flex-col min-h-dvh relative w-full md:pl-64 transition-all duration-300">
-        
-        {/* --- MOBILE HEADER (Sticky Top - Hidden on Desktop) --- */}
+      <div className="relative flex min-h-dvh w-full flex-1 flex-col md:pl-64 transition-all duration-300">
         <DashboardMobileHeader onOpenSettings={openSettings} />
 
-        {/* --- PAGE CONTENT INJECTION --- */}
-        {/* Mobile: safe-area aware top + nav-space bottom
-            Desktop: pt-8 + px-8 (standard dashboard spacing)
-        */}
-        <main className="flex-1 w-full max-w-7xl mx-auto pt-[calc(env(safe-area-inset-top)+4.625rem)] px-0 pb-[calc(6.5rem+env(safe-area-inset-bottom))] md:pt-8 md:px-8 md:pb-12">
+        <main className="mx-auto flex w-full max-w-7xl flex-1 px-0 pb-[calc(6.5rem+env(safe-area-inset-bottom))] pt-[calc(env(safe-area-inset-top)+4.625rem)] md:px-8 md:pb-12 md:pt-8">
           {children}
         </main>
 
-        {/* --- MOBILE BOTTOM NAVIGATION (Sticky Bottom - Hidden on Desktop) --- */}
-        <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-zinc-100 z-50 h-[80px] pb-safe shadow-[0_-4px_20px_rgba(0,0,0,0.03)]">
-          <div className="flex items-end justify-between h-full pb-3 px-6 relative max-w-md mx-auto w-full">
-            
+        <nav className="pb-safe fixed bottom-0 left-0 right-0 z-50 h-[80px] border-t border-zinc-100 bg-white shadow-[0_-4px_20px_rgba(0,0,0,0.03)] md:hidden">
+          <div className="relative mx-auto flex h-full w-full max-w-md items-end justify-between px-6 pb-3">
             {TABS.map((tab) => {
               const isActive = pathname === tab.href;
-              
-              // Mobile Floating Scanner Button Logic
+              const Icon = tab.icon;
+
               if (tab.isSpecial) {
                 return (
-                  <div key="scan" className="relative -top-8 flex justify-center w-[20%]">
-                    <button 
+                  <div
+                    key="scan"
+                    className="relative -top-8 flex w-[20%] justify-center"
+                  >
+                    <button
+                      type="button"
                       onClick={openScanner}
-                      className="w-14 h-14 bg-[#C72C48] rounded-full flex items-center justify-center text-white shadow-[0_8px_20px_rgba(199,44,72,0.4)] border-[4px] border-white active:scale-90 transition-transform hover:bg-[#A61F38] ring-1 ring-zinc-100"
+                      className="h-14 w-14 rounded-full border-[4px] border-white bg-[#C72C48] text-white ring-1 ring-zinc-100 shadow-[0_8px_20px_rgba(199,44,72,0.4)] transition-transform hover:bg-[#A61F38] active:scale-90"
                     >
                       <ScanLine size={24} strokeWidth={2.5} />
                     </button>
@@ -146,20 +164,29 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 );
               }
 
-              // Standard Mobile Nav Items
               return (
-                <button 
-                  key={tab.name} 
+                <button
+                  key={tab.name}
+                  type="button"
                   onClick={() => navigateTo(tab.href)}
-                  className={`flex flex-col items-center justify-end gap-1 w-[20%] h-full pb-1 transition-all duration-300 group active:scale-95 ${isActive ? "text-[#C72C48]" : "text-zinc-400 hover:text-zinc-600"}`}
+                  className={`flex h-full w-[20%] flex-col items-center justify-end gap-1 pb-1 text-[10px] font-medium tracking-wide transition-all duration-300 active:scale-95 ${
+                    isActive
+                      ? "text-[#C72C48]"
+                      : "text-zinc-400 hover:text-zinc-600"
+                  }`}
                 >
-                  <div className={`transition-transform duration-300 ${isActive ? "-translate-y-1" : "group-hover:-translate-y-1"}`}>
-                    <tab.icon 
-                      size={22} 
-                      strokeWidth={isActive ? 2.5 : 2} 
-                    />
+                  <div
+                    className={`transition-transform duration-300 ${
+                      isActive ? "-translate-y-1" : "group-hover:-translate-y-1"
+                    }`}
+                  >
+                    <Icon size={22} strokeWidth={isActive ? 2.5 : 2} />
                   </div>
-                  <span className={`text-[10px] font-medium tracking-wide transition-opacity duration-300 ${isActive ? "opacity-100 font-bold" : "opacity-80"}`}>
+                  <span
+                    className={`transition-opacity duration-300 ${
+                      isActive ? "font-bold opacity-100" : "opacity-80"
+                    }`}
+                  >
                     {tab.name}
                   </span>
                 </button>
@@ -167,16 +194,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             })}
           </div>
         </nav>
-
       </div>
 
-      {/* --- GLOBAL SCANNER OVERLAY (Works on Mobile & Desktop) --- */}
-      <Scanner 
-        isOpen={isScannerOpen} 
-        onClose={closeScanner} 
-        onScan={handleScan} 
-      />
-
+      <Scanner isOpen={isScannerOpen} onClose={closeScanner} onScan={handleScan} />
     </div>
   );
 }

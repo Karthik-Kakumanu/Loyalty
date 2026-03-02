@@ -166,7 +166,7 @@ export default function Dashboard() {
   if (isLoading) return <DashboardSkeleton />;
 
   return (
-    <div className="min-h-screen w-full relative pb-24">
+    <div className="min-h-dvh w-full relative pb-24">
       
       {/* SEARCH BAR */}
       <div className="sticky top-[-1px] md:top-0 z-30 bg-[#F8F9FA]/95 backdrop-blur-md py-4 md:pt-0 px-5 md:px-0 transition-all duration-300">

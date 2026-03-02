@@ -1,86 +1,246 @@
+// file: src/actions/dashboard.ts
 "use server";
 
 import { db } from "@/lib/db";
 import { getSession } from "@/lib/session";
 import { joinCafeWithSerial } from "@/actions/cafe";
 
-// 1. Get Dashboard Data
-export async function getDashboardData() {
+type CafeSummary = {
+  id: string;
+  name: string;
+  image: string | null;
+  rating: number;
+  lat: number | null;
+  lng: number | null;
+  address: string;
+};
+
+type LoyaltyCardRecord = {
+  id: string;
+  stamps: number;
+  maxStamps: number;
+  tier: string | null;
+  balance: number | null;
+  cafe: CafeSummary;
+};
+
+type DashboardData = {
+  myCards: LoyaltyCardRecord[];
+  trending: CafeSummary[];
+  allCafes: CafeSummary[];
+  user: {
+    userId: string;
+    phone: string;
+  } | null;
+};
+
+type SearchCafeResult = {
+  id: string;
+  name: string;
+  address: string;
+};
+
+type CafeReserve = {
+  id: string;
+  name: string;
+  address: string;
+  image: string | null;
+  lat: number | null;
+  lng: number | null;
+  totalTables: number;
+  _count: {
+    reservations: number;
+  };
+};
+
+type ReservationRecord = {
+  id: string;
+  status: string;
+  date: Date;
+  cafe: {
+    name: string;
+  };
+};
+
+type ReserveData = {
+  cafes: CafeReserve[];
+  reservations: ReservationRecord[];
+};
+
+type RewardRecord = {
+  id: string;
+  title: string;
+  cafeName: string;
+  expiryLabel: string;
+  status: "READY" | "USED" | "EXPIRED";
+  pointsUsed: number;
+  code: string | null;
+};
+
+type UserProfile = {
+  name: string | null;
+  phone: string;
+  image: string | null;
+} | null;
+
+export async function getDashboardData(): Promise<DashboardData> {
   try {
     const session = await getSession();
-    if (!session) return { myCards: [], trending: [], allCafes: [], user: null };
+    if (!session?.userId) {
+      return {
+        myCards: [],
+        trending: [],
+        allCafes: [],
+        user: null
+      };
+    }
 
-    // Fetch User's Active Cards
-    const myCards = await db.loyaltyCard.findMany({
+    const myCardsRaw = await db.loyaltyCard.findMany({
       where: { userId: session.userId },
-      include: { 
+      include: {
         cafe: {
-          select: { id: true, name: true, image: true, rating: true, lat: true, lng: true, address: true }
-        } 
+          select: {
+            id: true,
+            name: true,
+            image: true,
+            rating: true,
+            lat: true,
+            lng: true,
+            address: true
+          }
+        }
       },
-      orderBy: { updatedAt: 'desc' }
+      orderBy: { updatedAt: "desc" }
     });
 
-    // Fetch Trending Cafes
-    const trending = await db.cafe.findMany({
+    const myCards: LoyaltyCardRecord[] = myCardsRaw.map((card) => ({
+      id: card.id,
+      stamps: card.stamps,
+      maxStamps: card.maxStamps,
+      tier: card.tier,
+      balance: card.balance,
+      cafe: {
+        id: card.cafe.id,
+        name: card.cafe.name,
+        image: card.cafe.image,
+        rating: card.cafe.rating,
+        lat: card.cafe.lat,
+        lng: card.cafe.lng,
+        address: card.cafe.address
+      }
+    }));
+
+    const trendingRaw = await db.cafe.findMany({
       orderBy: { visitCount: "desc" },
       take: 5,
-      select: { id: true, name: true, image: true, rating: true, address: true, lat: true, lng: true }
+      select: {
+        id: true,
+        name: true,
+        image: true,
+        rating: true,
+        address: true,
+        lat: true,
+        lng: true
+      }
     });
 
-    // Fetch Nearby Candidates
-    const allCafes = await db.cafe.findMany({
+    const trending: CafeSummary[] = trendingRaw.map((cafe) => ({
+      id: cafe.id,
+      name: cafe.name,
+      image: cafe.image,
+      rating: cafe.rating,
+      lat: cafe.lat,
+      lng: cafe.lng,
+      address: cafe.address
+    }));
+
+    const allRaw = await db.cafe.findMany({
       take: 20,
-      select: { id: true, name: true, image: true, lat: true, lng: true, rating: true, address: true }
+      select: {
+        id: true,
+        name: true,
+        image: true,
+        rating: true,
+        address: true,
+        lat: true,
+        lng: true
+      }
     });
 
-    return { myCards, trending, allCafes, user: session };
+    const allCafes: CafeSummary[] = allRaw.map((cafe) => ({
+      id: cafe.id,
+      name: cafe.name,
+      image: cafe.image,
+      rating: cafe.rating,
+      lat: cafe.lat,
+      lng: cafe.lng,
+      address: cafe.address
+    }));
+
+    return {
+      myCards,
+      trending,
+      allCafes,
+      user: {
+        userId: session.userId,
+        phone: session.phone
+      }
+    };
   } catch (error) {
-    console.error("Failed to fetch dashboard data:", error);
-    // Return empty structure instead of null so UI doesn't crash
-    return { myCards: [], trending: [], allCafes: [], user: null };
+    // eslint-disable-next-line no-console
+    console.error("getDashboardData error:", error);
+    return {
+      myCards: [],
+      trending: [],
+      allCafes: [],
+      user: null
+    };
   }
 }
 
-// 2. Real-Time Search
-export async function searchCafes(query: string) {
-  if (!query) return [];
+export async function searchCafes(query: string): Promise<SearchCafeResult[]> {
+  const trimmed = query.trim();
+  if (!trimmed) return [];
   try {
-    return await db.cafe.findMany({
+    const cafes = await db.cafe.findMany({
       where: {
         OR: [
-          { name: { contains: query, mode: "insensitive" } },
-          { address: { contains: query, mode: "insensitive" } },
-          { city: { contains: query, mode: "insensitive" } },
+          { name: { contains: trimmed, mode: "insensitive" } },
+          { address: { contains: trimmed, mode: "insensitive" } },
+          { city: { contains: trimmed, mode: "insensitive" } }
         ]
       },
       take: 5,
-      select: { id: true, name: true, address: true }
+      select: {
+        id: true,
+        name: true,
+        address: true
+      }
     });
+
+    return cafes.map((cafe) => ({
+      id: cafe.id,
+      name: cafe.name,
+      address: cafe.address
+    }));
   } catch (error) {
-    console.error("Search failed:", error);
+    // eslint-disable-next-line no-console
+    console.error("searchCafes error:", error);
     return [];
   }
 }
 
-// 3. Unlock/Join Cafe
 export async function joinCafe(cafeId: string) {
-  // Keep this wrapper for existing UI imports, but use the serial-safe join flow.
   return joinCafeWithSerial(cafeId);
 }
 
-// ... existing imports in src/actions/dashboard.ts
-// import { db } from "@/lib/db";
-// import { getSession } from "@/lib/session";
-
-// 4. Get Real-Time Reserve Data
-export async function getReserveData() {
+export async function getReserveData(): Promise<ReserveData> {
   try {
     const session = await getSession();
-    if (!session) return { cafes: [], reservations: [] };
+    if (!session?.userId) {
+      return { cafes: [], reservations: [] };
+    }
 
-    // 1. Fetch Cafes with Table Counts
-    // We count "CONFIRMED" reservations to estimate availability
     const cafes = await db.cafe.findMany({
       select: {
         id: true,
@@ -91,62 +251,80 @@ export async function getReserveData() {
         lng: true,
         totalTables: true,
         _count: {
-          select: { reservations: { where: { status: "CONFIRMED" } } } // Count active bookings
+          select: {
+            reservations: {
+              where: { status: "CONFIRMED" }
+            }
+          }
         }
       }
     });
 
-    // 2. Fetch User's Booking History
     const reservations = await db.reservation.findMany({
       where: { userId: session.userId },
-      include: { cafe: { select: { name: true } } },
-      orderBy: { date: 'desc' }
+      include: {
+        cafe: { select: { name: true } }
+      },
+      orderBy: { date: "desc" }
     });
 
     return { cafes, reservations };
   } catch (error) {
-    console.error("Failed to fetch reserve data:", error);
+    // eslint-disable-next-line no-console
+    console.error("getReserveData error:", error);
     return { cafes: [], reservations: [] };
   }
 }
 
-// ... existing imports in src/actions/dashboard.ts
-
-// 5. Get Loyalty Rewards
-export async function getLoyaltyData() {
+export async function getLoyaltyData(): Promise<RewardRecord[]> {
   try {
     const session = await getSession();
-    if (!session) return [];
+    if (!session?.userId) {
+      return [];
+    }
 
-    // Fetch User's Rewards
     const rewards = await db.userReward.findMany({
       where: { userId: session.userId },
-      orderBy: { createdAt: 'desc' } // Newest first
+      orderBy: { createdAt: "desc" }
     });
 
-    return rewards;
+    const mapped: RewardRecord[] = rewards.map((reward) => ({
+      id: reward.id,
+      title: reward.title,
+      cafeName: reward.cafeName,
+      expiryLabel: reward.expiryLabel,
+      status: reward.status as RewardRecord["status"],
+      pointsUsed: reward.pointsUsed,
+      code: reward.code
+    }));
+
+    return mapped;
   } catch (error) {
-    console.error("Failed to fetch loyalty data:", error);
+    // eslint-disable-next-line no-console
+    console.error("getLoyaltyData error:", error);
     return [];
   }
 }
 
-// ... (Keep existing imports and functions)
-
-// 6. Get User Profile for Settings
-export async function getUserProfile() {
+export async function getUserProfile(): Promise<UserProfile> {
   try {
     const session = await getSession();
-    if (!session || !session.userId) return null;
-
+    if (!session?.userId) {
+      return null;
+    }
     const user = await db.user.findUnique({
       where: { id: session.userId },
-      select: { name: true, phone: true, image: true }
+      select: {
+        name: true,
+        phone: true,
+        image: true
+      }
     });
-
+    if (!user) return null;
     return user;
   } catch (error) {
-    console.error("Failed to fetch profile:", error);
+    // eslint-disable-next-line no-console
+    console.error("getUserProfile error:", error);
     return null;
   }
 }

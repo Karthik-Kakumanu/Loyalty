@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
 import { 
@@ -10,28 +10,34 @@ import {
   CreditCard, 
   Star, 
   User, 
-  Settings,
-  LogOut,
-  Menu // Added for potential mobile drawer if needed later
+  Settings
 } from "lucide-react";
 import { Scanner } from "@/components/dashboard/scanner";
+import { DashboardMobileHeader } from "@/components/layout/dashboard-mobile-header";
+
+const TABS = [
+  { name: "Home", href: "/dashboard", icon: Home },
+  { name: "Reserve", href: "/dashboard/reserve", icon: CalendarDays },
+  { name: "Scan", href: "#scan", icon: ScanLine, isSpecial: true },
+  { name: "Cards", href: "/dashboard/cards", icon: CreditCard },
+  { name: "Loyalty", href: "/dashboard/loyalty", icon: Star },
+] as const;
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter(); 
   const [isScannerOpen, setIsScannerOpen] = useState(false);
-
-  // Navigation Data
-  const TABS = [
-    { name: "Home", href: "/dashboard", icon: Home },
-    { name: "Reserve", href: "/dashboard/reserve", icon: CalendarDays },
-    { name: "Scan", href: "#scan", icon: ScanLine, isSpecial: true }, // Special Trigger
-    { name: "Cards", href: "/dashboard/cards", icon: CreditCard },
-    { name: "Loyalty", href: "/dashboard/loyalty", icon: Star },
-  ];
+  const openScanner = useCallback(() => setIsScannerOpen(true), []);
+  const closeScanner = useCallback(() => setIsScannerOpen(false), []);
+  const openSettings = useCallback(() => router.push("/dashboard/settings"), [router]);
+  const navigateTo = useCallback((href: string) => router.push(href), [router]);
+  const handleScan = useCallback((data: string) => {
+    console.log("Scanned:", data);
+    closeScanner();
+  }, [closeScanner]);
 
   return (
-    <div className="min-h-screen bg-[#F8F9FA] font-sans text-zinc-900 flex flex-col md:flex-row">
+    <div className="min-h-dvh bg-[#F8F9FA] font-sans text-zinc-900 flex flex-col md:flex-row">
       
       {/* ==================================================================
           DESKTOP SIDEBAR (Visible on Tablet/Desktop, Hidden on Mobile)
@@ -74,7 +80,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           
           {/* Desktop Scan Button (Optional, if you want it in sidebar) */}
           <button
-             onClick={() => setIsScannerOpen(true)}
+             onClick={openScanner}
              className="w-full flex items-center gap-3 px-4 py-3 rounded-xl font-medium transition-all duration-200 text-zinc-600 hover:bg-zinc-50 hover:text-[#C72C48] group mt-2"
           >
              <div className="p-1 group-hover:bg-[#C72C48]/10 rounded-lg transition-colors">
@@ -87,7 +93,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         {/* Desktop User Profile Section (Bottom of Sidebar) */}
         <div className="p-4 border-t border-zinc-100 bg-white">
           <button 
-            onClick={() => router.push("/dashboard/settings")}
+            onClick={openSettings}
             className="w-full flex items-center gap-3 p-3 rounded-xl hover:bg-zinc-50 transition-colors cursor-pointer group text-left border border-transparent hover:border-zinc-200"
           >
             <div className="w-10 h-10 bg-zinc-100 rounded-full flex items-center justify-center text-zinc-500 border border-zinc-200 group-hover:border-[#C72C48]/30 transition-colors shrink-0">
@@ -106,29 +112,16 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       {/* ==================================================================
           MAIN CONTENT WRAPPER
          ================================================================== */}
-      <div className="flex-1 flex flex-col min-h-screen relative w-full md:pl-64 transition-all duration-300">
+      <div className="flex-1 flex flex-col min-h-dvh relative w-full md:pl-64 transition-all duration-300">
         
         {/* --- MOBILE HEADER (Sticky Top - Hidden on Desktop) --- */}
-        <header className="md:hidden fixed top-0 left-0 right-0 h-16 z-40 bg-white/90 backdrop-blur-md border-b border-zinc-200 px-5 flex items-center justify-between shadow-sm">
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 bg-[#C72C48] rounded-lg flex items-center justify-center text-white font-bold text-sm shadow-sm shadow-red-200">L</div>
-            <span className="font-bold text-lg tracking-tight text-zinc-900">Revistra</span>
-          </div>
-          
-          {/* Mobile Profile Button */}
-          <button 
-            onClick={() => router.push("/dashboard/settings")}
-            className="w-9 h-9 bg-zinc-50 rounded-full flex items-center justify-center text-zinc-600 border border-zinc-200 active:scale-95 transition-transform hover:bg-zinc-100"
-          >
-            <User size={18} />
-          </button>
-        </header>
+        <DashboardMobileHeader onOpenSettings={openSettings} />
 
         {/* --- PAGE CONTENT INJECTION --- */}
-        {/* Mobile: pt-20 (header space) + pb-32 (nav space)
+        {/* Mobile: safe-area aware top + nav-space bottom
             Desktop: pt-8 + px-8 (standard dashboard spacing)
         */}
-        <main className="flex-1 w-full max-w-7xl mx-auto pt-20 px-0 pb-32 md:pt-8 md:px-8 md:pb-12">
+        <main className="flex-1 w-full max-w-7xl mx-auto pt-[calc(env(safe-area-inset-top)+4.625rem)] px-0 pb-[calc(6.5rem+env(safe-area-inset-bottom))] md:pt-8 md:px-8 md:pb-12">
           {children}
         </main>
 
@@ -144,7 +137,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 return (
                   <div key="scan" className="relative -top-8 flex justify-center w-[20%]">
                     <button 
-                      onClick={() => setIsScannerOpen(true)}
+                      onClick={openScanner}
                       className="w-14 h-14 bg-[#C72C48] rounded-full flex items-center justify-center text-white shadow-[0_8px_20px_rgba(199,44,72,0.4)] border-[4px] border-white active:scale-90 transition-transform hover:bg-[#A61F38] ring-1 ring-zinc-100"
                     >
                       <ScanLine size={24} strokeWidth={2.5} />
@@ -157,7 +150,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               return (
                 <button 
                   key={tab.name} 
-                  onClick={() => router.push(tab.href)}
+                  onClick={() => navigateTo(tab.href)}
                   className={`flex flex-col items-center justify-end gap-1 w-[20%] h-full pb-1 transition-all duration-300 group active:scale-95 ${isActive ? "text-[#C72C48]" : "text-zinc-400 hover:text-zinc-600"}`}
                 >
                   <div className={`transition-transform duration-300 ${isActive ? "-translate-y-1" : "group-hover:-translate-y-1"}`}>
@@ -180,12 +173,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       {/* --- GLOBAL SCANNER OVERLAY (Works on Mobile & Desktop) --- */}
       <Scanner 
         isOpen={isScannerOpen} 
-        onClose={() => setIsScannerOpen(false)} 
-        onScan={(data) => {
-          console.log("Scanned:", data);
-          // Scanner component handles the logic, but we close it here visually
-          setIsScannerOpen(false);
-        }} 
+        onClose={closeScanner} 
+        onScan={handleScan} 
       />
 
     </div>

@@ -125,8 +125,8 @@ export default function CafeDetailsPage({ params }: { params: Promise<{ id: stri
     window.open(mapsUrl, "_blank");
   };
 
-  if (loading) return <div className="h-screen flex items-center justify-center bg-[#FDFCFD]"><Loader2 className="animate-spin text-[#C72C48] w-8 h-8"/></div>;
-  if (!cafe) return <div className="h-screen flex items-center justify-center text-zinc-500 bg-[#FDFCFD]">Cafe not found</div>;
+  if (loading) return <div className="h-dvh flex items-center justify-center bg-[#FDFCFD]"><Loader2 className="animate-spin text-[#C72C48] w-8 h-8"/></div>;
+  if (!cafe) return <div className="h-dvh flex items-center justify-center text-zinc-500 bg-[#FDFCFD]">Cafe not found</div>;
 
   const memberCard = cafe.cards?.[0] ?? null;
   const isMember = Boolean(memberCard);
@@ -145,7 +145,7 @@ export default function CafeDetailsPage({ params }: { params: Promise<{ id: stri
   }
 
   return (
-    <div className="min-h-screen bg-[#FDFCFD] pb-24 relative selection:bg-[#C72C48] selection:text-white">
+    <div className="min-h-dvh bg-[#FDFCFD] pb-24 relative selection:bg-[#C72C48] selection:text-white">
       
       {/* --- HERO IMAGE --- */}
       <div className="relative h-72 w-full bg-zinc-900">

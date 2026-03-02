@@ -1,98 +1,126 @@
+// file: src/actions/auth.ts
 "use server";
 
+import { redirect } from "next/navigation";
 import { db } from "@/lib/db";
 import { createSession, deleteSession, getSession } from "@/lib/session";
-import { redirect } from "next/navigation";
 
-// 1. Check User (Frontend Check)
-export async function checkUserExists(phone: string, countryCode: string) {
-  let cleanPhone = phone.replace(/\D/g, "");
-  if (cleanPhone.length === 12 && cleanPhone.startsWith("91")) cleanPhone = cleanPhone.slice(2);
-  const fullPhone = `${countryCode}${cleanPhone}`;
+type CheckUserResult = {
+  exists: boolean;
+};
 
-  const user = await db.user.findUnique({ where: { phone: fullPhone } });
-  return { exists: !!user };
+type OtpResult = {
+  success: boolean;
+  error?: string;
+};
+
+type VerifyOtpResult = {
+  success: boolean;
+  error?: string;
+  isNewUser?: boolean;
+};
+
+type MutationResult = {
+  success: boolean;
+  error?: string;
+};
+
+type SignupPayload = {
+  name: string;
+  phone: string;
+  dob: string;
+  state: string;
+  city: string;
+};
+
+function normalizePhone(rawPhone: string, countryCode: string): string {
+  let clean = rawPhone.replace(/\D/g, "");
+  if (countryCode === "+91" && clean.length === 12 && clean.startsWith("91")) {
+    clean = clean.slice(2);
+  }
+  return `${countryCode}${clean}`;
 }
 
-// 2. Send OTP (Using Quick Route as per Fast2SMS Support)
-export async function sendOtp(formData: FormData) {
-  const phone = formData.get("phone") as string;
-  const countryCode = formData.get("countryCode") as string;
-  
-  // Clean phone number logic
-  let cleanPhone = phone.replace(/\D/g, ""); 
-  if (cleanPhone.length === 12 && cleanPhone.startsWith("91")) cleanPhone = cleanPhone.slice(2);
-  const fullPhone = `${countryCode}${cleanPhone}`;
+export async function checkUserExists(
+  phone: string,
+  countryCode: string
+): Promise<CheckUserResult> {
+  const normalized = normalizePhone(phone, countryCode);
+  const user = await db.user.findUnique({ where: { phone: normalized } });
+  return { exists: Boolean(user) };
+}
 
-  // Generate Real OTP
-  const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
-  const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 Minutes expiry
+export async function sendOtp(formData: FormData): Promise<OtpResult> {
+  const phone = String(formData.get("phone") ?? "");
+  const countryCode = String(formData.get("countryCode") ?? "");
+  const normalized = normalizePhone(phone, countryCode);
 
-  // Always log for Render Dashboard debugging
-  console.log(`[DEBUG] Generated OTP: ${otpCode} for ${cleanPhone}`);
+  if (!phone || !countryCode) {
+    return { success: false, error: "Invalid phone" };
+  }
 
-  // Send SMS via Fast2SMS
+  const code = Math.floor(100000 + Math.random() * 900000).toString();
+  const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
+
+  // Debug logging only
+  // eslint-disable-next-line no-console
+  console.log("[OTP] Generated", normalized, code);
+
   const apiKey = process.env.OTP_API_KEY;
-  
+
   if (apiKey && countryCode === "+91") {
     try {
-      console.log("[Fast2SMS] Attempting to send SMS via Quick Route...");
-      
-      // SWITCHED BACK TO "q" ROUTE based on Support recommendation
       const response = await fetch("https://www.fast2sms.com/dev/bulkV2", {
         method: "POST",
-        headers: { "authorization": apiKey, "Content-Type": "application/json" },
+        headers: {
+          authorization: apiKey,
+          "Content-Type": "application/json"
+        },
         body: JSON.stringify({
-          route: "q", 
-          message: `Your Revistra OTP is ${otpCode}`, // "q" uses 'message', not 'variables_values'
+          route: "q",
+          message: `Your Revistra OTP is ${code}`,
           flash: 0,
-          numbers: cleanPhone,
+          numbers: normalized.replace(/^\+91/, "")
         })
       });
 
-      // Log the actual response from the SMS provider
-      const result = await response.json();
-      console.log("[Fast2SMS] Response:", JSON.stringify(result, null, 2));
-
+      // eslint-disable-next-line no-console
+      console.log("[Fast2SMS]", response.status);
     } catch (error) {
-      console.error("[Fast2SMS] Request Failed:", error);
+      // eslint-disable-next-line no-console
+      console.error("[Fast2SMS] failed", error);
     }
-  } else {
-    console.log("[DEBUG] Skipping SMS: No API Key found or Non-Indian number.");
   }
 
-  // Save OTP to Database
   await db.otp.upsert({
-    where: { phone: fullPhone },
-    update: { code: otpCode, expiresAt },
-    create: { phone: fullPhone, code: otpCode, expiresAt },
+    where: { phone: normalized },
+    update: { code, expiresAt },
+    create: { phone: normalized, code, expiresAt }
   });
-  
+
   return { success: true };
 }
 
-// 3. Verify OTP (Does NOT create session yet - prevents race condition)
-export async function verifyOtpAndLogin(phone: string, code: string) {
-  const otpRecord = await db.otp.findUnique({ where: { phone } });
-  
-  if (!otpRecord || otpRecord.code !== code) {
-    return { success: false, error: "Invalid OTP" };
+export async function verifyOtpAndLogin(
+  phone: string,
+  code: string
+): Promise<VerifyOtpResult> {
+  const record = await db.otp.findUnique({ where: { phone } });
+  if (!record || record.code !== code) {
+    return { success: false, error: "Invalid code" };
   }
-  
-  if (new Date() > otpRecord.expiresAt) {
-    return { success: false, error: "OTP Expired" };
+  if (new Date() > record.expiresAt) {
+    return { success: false, error: "Code expired" };
   }
-  
+
   const user = await db.user.findUnique({ where: { phone } });
-  
-  // Consume the OTP so it can't be used again
-  await db.otp.delete({ where: { phone } }); 
-  
+
+  await db.otp.delete({ where: { phone } });
+
   return { success: true, isNewUser: !user };
 }
 
-// 4. Complete Signup (Create User -> Create Session)
-export async function completeSignup(data: any) {
+export async function completeSignup(data: SignupPayload): Promise<MutationResult> {
   try {
     const user = await db.user.create({
       data: {
@@ -100,44 +128,46 @@ export async function completeSignup(data: any) {
         phone: data.phone,
         dob: new Date(data.dob),
         state: data.state,
-        city: data.city,
+        city: data.city
       }
     });
     await createSession(user.id, user.phone);
     return { success: true };
   } catch (error) {
-    console.error("Signup Error", error);
-    return { success: false, error: "Failed to create account" };
+    // eslint-disable-next-line no-console
+    console.error("Signup error", error);
+    return { success: false, error: "Unable to create account" };
   }
 }
 
-// 5. Complete Login (Find User -> Create Session)
-export async function completeLogin(phone: string) {
+export async function completeLogin(phone: string): Promise<MutationResult> {
   const user = await db.user.findUnique({ where: { phone } });
-  if (!user) return { success: false, error: "User not found" };
-  
+  if (!user) {
+    return { success: false, error: "User not found" };
+  }
   await createSession(user.id, user.phone);
   return { success: true };
 }
 
-// 6. Save Onboarding Interests
-export async function updateInterests(interests: string[]) {
+export async function updateInterests(interests: string[]): Promise<MutationResult> {
   const session = await getSession();
-  if (!session || !session.userId) return { success: false, error: "Unauthorized" };
-
+  if (!session?.userId) {
+    return { success: false, error: "Unauthorized" };
+  }
   try {
     await db.user.update({
       where: { id: session.userId },
-      data: { interests: interests }
+      data: { interests }
     });
     return { success: true };
   } catch (error) {
-    return { success: false, error: "Failed to save" };
+    // eslint-disable-next-line no-console
+    console.error("Failed to save interests", error);
+    return { success: false, error: "Unable to save preferences" };
   }
 }
 
-// 7. Logout
-export async function logoutUser() {
+export async function logoutUser(): Promise<never> {
   await deleteSession();
   redirect("/auth");
 }

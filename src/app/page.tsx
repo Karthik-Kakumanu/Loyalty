@@ -31,8 +31,8 @@ export default async function HomePage() {
   }
 
   return (
-    <main className="min-h-screen overflow-x-clip bg-white">
-      <section className="mx-auto flex min-h-screen w-full max-w-md flex-col justify-center px-5 pb-10 pt-8 sm:max-w-lg sm:px-8">
+    <main className="min-h-dvh overflow-x-clip bg-white">
+      <section className="mx-auto flex min-h-dvh w-full max-w-md flex-col justify-center px-5 pb-10 pt-8 sm:max-w-lg sm:px-8">
         <header className="rounded-[2rem] border border-[#EDE8E3] bg-white p-4 shadow-[0_30px_80px_-52px_rgba(15,23,42,0.35)] sm:p-5">
           <div className="overflow-hidden rounded-[1.5rem] border border-[#F3EFEC] bg-white px-4 py-6 sm:px-6 sm:py-8">
             <Image

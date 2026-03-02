@@ -51,7 +51,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className={`${geistSans.variable} ${geistMono.variable} antialiased bg-[#F8F9FA] min-h-screen`}>
+      <body className={`${geistSans.variable} ${geistMono.variable} antialiased bg-[#F8F9FA] min-h-dvh overflow-x-hidden`}>
         {children}
         <InstallPrompt />
       </body>

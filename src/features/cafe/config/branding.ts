@@ -2,6 +2,8 @@ const FALLBACK_LOGO = "/logo.jpg";
 
 const CAFE_LOGO_MAP: Record<string, string> = {
   "cake roven": "/cafes/cake-roven/logo.png",
+  cakeroven: "/cafes/cake-roven/logo.png",
+  "cake-roven": "/cafes/cake-roven/logo.png",
   "bistro one": "/cafes/bistro-one/logo.png",
   "roast theory": "/cafes/roast-theory/logo.png",
 };

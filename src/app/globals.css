@@ -11,9 +11,11 @@
 /* --- NATIVE APP BASE STYLES --- */
 html {
   height: 100%;
+  min-height: 100%;
   /* Prevent the "bounce" effect when scrolling to top/bottom on mobile */
   overscroll-behavior-y: none; 
   -webkit-overflow-scrolling: touch;
+  -webkit-text-size-adjust: 100%;
 }
 
 body {
@@ -25,7 +27,7 @@ body {
   -webkit-tap-highlight-color: transparent;
   
   /* Ensure full height for layout */
-  min-height: 100%;
+  min-height: 100dvh;
   
   /* Prevent horizontal scroll on mobile */
   overflow-x: hidden;
@@ -42,6 +44,11 @@ body {
 
 .pt-safe {
   padding-top: env(safe-area-inset-top);
+}
+
+.px-safe {
+  padding-left: env(safe-area-inset-left);
+  padding-right: env(safe-area-inset-right);
 }
 
 /* 2. Scrollbar Hiding (Clean UI) */

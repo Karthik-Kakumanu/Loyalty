@@ -61,7 +61,7 @@ export default function OnboardingPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#FDFDFD] flex items-center justify-center p-6 text-zinc-900 font-sans">
+    <div className="min-h-dvh bg-[#FDFDFD] flex items-center justify-center p-6 text-zinc-900 font-sans">
       <div className="w-full max-w-md">
         
         {/* Progress Dots */}

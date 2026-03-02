@@ -296,7 +296,7 @@ export default function AuthPage() {
   };
 
   return (
-    <div className="min-h-screen w-full flex items-center justify-center bg-white relative overflow-hidden font-sans text-zinc-900">
+    <div className="min-h-dvh w-full flex items-center justify-center bg-white relative overflow-hidden font-sans text-zinc-900">
       
       {/* Background Blobs */}
       <div className="absolute inset-0 w-full h-full pointer-events-none">

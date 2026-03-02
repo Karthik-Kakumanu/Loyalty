@@ -71,7 +71,7 @@ type RewardRecord = {
   id: string;
   title: string;
   cafeName: string;
-  expiryLabel: string;
+  expiry: string; // matches Prisma field
   status: "READY" | "USED" | "EXPIRED";
   pointsUsed: number;
   code: string | null;
@@ -187,7 +187,6 @@ export async function getDashboardData(): Promise<DashboardData> {
       }
     };
   } catch (error) {
-    // eslint-disable-next-line no-console
     console.error("getDashboardData error:", error);
     return {
       myCards: [],
@@ -224,7 +223,6 @@ export async function searchCafes(query: string): Promise<SearchCafeResult[]> {
       address: cafe.address
     }));
   } catch (error) {
-    // eslint-disable-next-line no-console
     console.error("searchCafes error:", error);
     return [];
   }
@@ -270,7 +268,6 @@ export async function getReserveData(): Promise<ReserveData> {
 
     return { cafes, reservations };
   } catch (error) {
-    // eslint-disable-next-line no-console
     console.error("getReserveData error:", error);
     return { cafes: [], reservations: [] };
   }
@@ -292,7 +289,7 @@ export async function getLoyaltyData(): Promise<RewardRecord[]> {
       id: reward.id,
       title: reward.title,
       cafeName: reward.cafeName,
-      expiryLabel: reward.expiryLabel,
+      expiry: reward.expiry, // fixed: use `expiry` from Prisma model
       status: reward.status as RewardRecord["status"],
       pointsUsed: reward.pointsUsed,
       code: reward.code
@@ -300,7 +297,6 @@ export async function getLoyaltyData(): Promise<RewardRecord[]> {
 
     return mapped;
   } catch (error) {
-    // eslint-disable-next-line no-console
     console.error("getLoyaltyData error:", error);
     return [];
   }
@@ -323,7 +319,6 @@ export async function getUserProfile(): Promise<UserProfile> {
     if (!user) return null;
     return user;
   } catch (error) {
-    // eslint-disable-next-line no-console
     console.error("getUserProfile error:", error);
     return null;
   }

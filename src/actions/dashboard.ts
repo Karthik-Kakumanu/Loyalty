@@ -71,10 +71,9 @@ type RewardRecord = {
   id: string;
   title: string;
   cafeName: string;
-  expiry: string; // matches Prisma field
+  expiry: string;
   status: "READY" | "USED" | "EXPIRED";
   pointsUsed: number;
-  code: string | null;
 };
 
 type UserProfile = {
@@ -289,10 +288,9 @@ export async function getLoyaltyData(): Promise<RewardRecord[]> {
       id: reward.id,
       title: reward.title,
       cafeName: reward.cafeName,
-      expiry: reward.expiry, // fixed: use `expiry` from Prisma model
+      expiry: reward.expiry,
       status: reward.status as RewardRecord["status"],
-      pointsUsed: reward.pointsUsed,
-      code: reward.code
+      pointsUsed: reward.pointsUsed
     }));
 
     return mapped;

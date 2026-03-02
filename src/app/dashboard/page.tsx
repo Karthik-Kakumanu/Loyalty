@@ -38,7 +38,7 @@ type LoyaltyCard = {
   id: string;
   stamps: number;
   maxStamps: number;
-  tier: string;
+  tier: string | null;
   cafe: Cafe;
 };
 

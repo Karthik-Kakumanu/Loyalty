@@ -32,7 +32,7 @@ Required:
 
 ## Scripts
 
-- `npm run icons:sync` - regenerate favicon + PWA icons from `public/logo.jpg`
+- `npm run icons:sync` - regenerate favicon + PWA icons from `public/logo.jpg` on Windows (skips safely on Linux/macOS CI)
 - `npm run dev` - local development
 - `npm run build` - production build
 - `npm run start` - run built app

@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "icons:sync": "powershell -ExecutionPolicy Bypass -File scripts/sync-brand-icons.ps1",
+    "icons:sync": "node scripts/sync-brand-icons.mjs",
     "dev": "npm run icons:sync && next dev --webpack",
     "build": "npm run icons:sync && prisma generate && next build --webpack",
     "start": "next start",

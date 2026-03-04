@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
+import Image from "next/image";
 import { motion, AnimatePresence } from "framer-motion";
 import { 
   MapPin, 
@@ -14,13 +15,13 @@ import {
   X,
   Loader2,
   CheckCircle2,
-  Coffee,
   Ghost,
-  Eye, 
-  ArrowRight 
+  Eye
 } from "lucide-react";
 import { getDashboardData, searchCafes, joinCafe } from "@/actions/dashboard"; 
 import { useRouter } from "next/navigation";
+import { toast } from "sonner";
+import { getCafeStampIconByName } from "@/features/cafe/config/branding";
 
 // --- TYPES ---
 type Cafe = {
@@ -42,6 +43,16 @@ type LoyaltyCard = {
   cafe: Cafe;
 };
 
+type SearchCafe = {
+  id: string;
+  name: string;
+  address: string;
+  image: string | null;
+  rating: number;
+  lat: number | null;
+  lng: number | null;
+};
+
 const TABS = [
   { id: "cards", label: "My Cards", icon: CreditCard }, 
   { id: "trending", label: "Trending", icon: Flame },
@@ -49,7 +60,7 @@ const TABS = [
 ];
 
 function calculateDistance(lat1: number | null, lon1: number | null, lat2: number | null, lon2: number | null) {
-  if (!lat1 || !lon1 || !lat2 || !lon2) return null;
+  if (lat1 === null || lon1 === null || lat2 === null || lon2 === null) return null;
   const R = 6371; 
   const dLat = (lat2 - lat1) * (Math.PI / 180);
   const dLon = (lon2 - lon1) * (Math.PI / 180);
@@ -78,7 +89,7 @@ export default function Dashboard() {
   const [data, setData] = useState<{ myCards: LoyaltyCard[], trending: Cafe[], allCafes: Cafe[] } | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
-  const [searchResults, setSearchResults] = useState<any[]>([]);
+  const [searchResults, setSearchResults] = useState<SearchCafe[]>([]);
   const [userLoc, setUserLoc] = useState<{lat: number, lng: number} | null>(null);
   const [unlockModal, setUnlockModal] = useState<Cafe | null>(null);
   const [isUnlocking, setIsUnlocking] = useState(false);
@@ -106,7 +117,7 @@ export default function Dashboard() {
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
         (pos) => setUserLoc({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
-        (err) => console.log("Location access denied", err)
+        () => undefined
       );
     }
   }, [fetchData]);
@@ -133,10 +144,11 @@ export default function Dashboard() {
         await fetchData(); 
         setActiveTab("cards");
       } else {
-        alert(result.error || "Failed to unlock");
+        toast.error(result.error || "Failed to unlock membership.");
       }
     } catch (error) {
       console.error("Unlock failed", error);
+      toast.error("Unable to unlock membership right now.");
     } finally {
       setIsUnlocking(false);
     }
@@ -166,10 +178,10 @@ export default function Dashboard() {
   if (isLoading) return <DashboardSkeleton />;
 
   return (
-    <div className="min-h-dvh w-full relative pb-24">
+    <div className="min-h-full w-full relative">
       
       {/* SEARCH BAR */}
-      <div className="sticky top-[-1px] md:top-0 z-30 bg-[#F8F9FA]/95 backdrop-blur-md py-4 md:pt-0 px-5 md:px-0 transition-all duration-300">
+      <div className="sticky top-0 z-30 bg-[#F8F9FA]/95 backdrop-blur-md py-4 md:pt-0 px-5 md:px-0 transition-all duration-300">
         <div className="relative">
           <div className="flex items-center bg-white border border-zinc-200 rounded-full px-4 py-3.5 shadow-sm focus-within:ring-2 focus-within:ring-[#C72C48]/20 focus-within:border-[#C72C48] transition-all">
             <Search size={20} className="text-zinc-400 mr-3 shrink-0" />
@@ -193,7 +205,7 @@ export default function Dashboard() {
                 initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
                 className="absolute top-full left-0 right-0 bg-white rounded-2xl shadow-xl border border-zinc-100 mt-2 p-2 z-40 max-h-64 overflow-y-auto"
               >
-                {searchResults.map((cafe: any) => (
+                {searchResults.map((cafe) => (
                    <button 
                      key={cafe.id} 
                      onClick={() => setUnlockModal(cafe)}
@@ -265,55 +277,77 @@ export default function Dashboard() {
                   </button>
                 </div>
               ) : (
-                data.myCards.map((card: LoyaltyCard) => (
-                  <div 
-                    key={card.id} 
-                    onClick={() => navigateToCard(card.id)} // CLICK GOES TO STAMPS
-                    className="relative w-full h-48 rounded-[32px] overflow-hidden shadow-lg shadow-zinc-200 group bg-zinc-900 cursor-pointer active:scale-[0.98] transition-transform"
-                  >
-                    <div 
-                      className={`absolute inset-0 bg-cover bg-center transition-transform duration-700 group-hover:scale-110 ${getImageClass(card.cafe.image)}`} 
-                      style={getBgStyle(card.cafe.image)}
-                    />
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-black/10" />
+                data.myCards.map((card: LoyaltyCard) => {
+                  const stampLogo = getCafeStampIconByName(card.cafe.name);
+                  const previewSlots = Math.min(card.maxStamps, 10);
 
-                    <div className="relative z-10 p-6 h-full flex flex-col justify-between text-white">
-                      <div className="flex justify-between items-start">
+                  return (
+                    <div
+                      key={card.id}
+                      onClick={() => navigateToCard(card.id)}
+                      className="relative w-full h-48 rounded-[32px] overflow-hidden shadow-lg shadow-zinc-200 group bg-zinc-900 cursor-pointer active:scale-[0.98] transition-transform"
+                    >
+                      <div
+                        className={`absolute inset-0 bg-cover bg-center transition-transform duration-700 group-hover:scale-110 ${getImageClass(card.cafe.image)}`}
+                        style={getBgStyle(card.cafe.image)}
+                      />
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-black/10" />
+
+                      <div className="relative z-10 p-6 h-full flex flex-col justify-between text-white">
+                        <div className="flex justify-between items-start">
+                          <div>
+                            <h3 className="font-bold text-xl leading-tight text-shadow-sm">{card.cafe.name}</h3>
+                            <p className="text-xs text-white/80 flex items-center gap-1 mt-1 font-medium">
+                              <MapPin size={10} />
+                              {userLoc && card.cafe.lat != null && card.cafe.lng != null
+                                ? `${calculateDistance(userLoc.lat, userLoc.lng, card.cafe.lat, card.cafe.lng)} km`
+                                : "Nearby"}
+                            </p>
+                          </div>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              navigateToCafe(card.cafe.id);
+                            }}
+                            className="bg-white/20 backdrop-blur-md p-2 rounded-full border border-white/10 hover:bg-white/30 transition-colors z-20"
+                          >
+                            <Eye size={18} />
+                          </button>
+                        </div>
+
                         <div>
-                          <h3 className="font-bold text-xl leading-tight text-shadow-sm">{card.cafe.name}</h3>
-                          <p className="text-xs text-white/80 flex items-center gap-1 mt-1 font-medium">
-                            <MapPin size={10} /> 
-                            {userLoc && card.cafe.lat && card.cafe.lng 
-                              ? `${calculateDistance(userLoc.lat, userLoc.lng, card.cafe.lat, card.cafe.lng)} km` 
-                              : "Nearby"}
-                          </p>
-                        </div>
-                        {/* VIEW BUTTON - STOPS PROPAGATION */}
-                        <button
-                          onClick={(e) => {
-                             e.stopPropagation();
-                             navigateToCafe(card.cafe.id);
-                          }}
-                          className="bg-white/20 backdrop-blur-md p-2 rounded-full border border-white/10 hover:bg-white/30 transition-colors z-20"
-                        >
-                          <Eye size={18} /> 
-                        </button>
-                      </div>
-
-                      <div>
-                        <div className="flex justify-between text-xs font-bold mb-2 tracking-wide uppercase opacity-90">
-                          <span>{card.tier}</span>
-                          <span>{card.stamps} / {card.maxStamps}</span>
-                        </div>
-                        <div className="flex gap-1.5 h-1.5">
-                          {[...Array(card.maxStamps)].map((_, i) => (
-                            <div key={i} className={`flex-1 rounded-full transition-all duration-500 ${i < card.stamps ? "bg-white shadow-[0_0_8px_rgba(255,255,255,0.8)]" : "bg-white/20"}`} />
-                          ))}
+                          <div className="flex justify-between text-xs font-bold mb-2 tracking-wide uppercase opacity-90">
+                            <span>{card.tier}</span>
+                            <span>{card.stamps} / {card.maxStamps}</span>
+                          </div>
+                          <div className="flex flex-wrap gap-1.5">
+                            {Array.from({ length: previewSlots }).map((_, i) => {
+                              const filled = i < card.stamps;
+                              return (
+                                <div
+                                  key={i}
+                                  className={`relative h-5 w-5 overflow-hidden rounded-full border ${
+                                    filled ? "border-white/70 bg-white" : "border-white/25 bg-white/10"
+                                  }`}
+                                >
+                                  {filled ? (
+                                    <Image
+                                      src={stampLogo}
+                                      alt="Stamp logo"
+                                      fill
+                                      sizes="20px"
+                                      className="object-contain p-0.5"
+                                    />
+                                  ) : null}
+                                </div>
+                              );
+                            })}
+                          </div>
                         </div>
                       </div>
                     </div>
-                  </div>
-                ))
+                  );
+                })
               )}
             </motion.div>
           )}
@@ -347,7 +381,11 @@ export default function Dashboard() {
                     <h3 className="font-bold text-sm text-zinc-900 leading-tight truncate">{cafe.name}</h3>
                     <div className="flex items-center gap-1 mt-1 text-[10px] text-zinc-500 truncate">
                       <MapPin size={10} className="shrink-0" /> 
-                      <span className="truncate">{userLoc && cafe.lat && cafe.lng ? `${calculateDistance(userLoc.lat, userLoc.lng, cafe.lat, cafe.lng)} km` : cafe.address}</span>
+                      <span className="truncate">
+                        {userLoc && cafe.lat != null && cafe.lng != null
+                          ? `${calculateDistance(userLoc.lat, userLoc.lng, cafe.lat, cafe.lng)} km`
+                          : cafe.address}
+                      </span>
                     </div>
                   </div>
                   
@@ -359,8 +397,8 @@ export default function Dashboard() {
                     {isMember ? (
                        <button 
                          onClick={(e) => { e.stopPropagation(); navigateToCafe(cafe.id); }}
-                         className="text-[10px] font-bold text-zinc-700 bg-zinc-100 px-2 py-1 rounded-lg hover:bg-zinc-200 transition-colors flex items-center gap-1"
-                       >
+                       className="min-h-[44px] text-[10px] font-bold text-zinc-700 bg-zinc-100 px-2 py-1 rounded-lg hover:bg-zinc-200 transition-colors flex items-center gap-1"
+                      >
                          View
                        </button>
                     ) : (

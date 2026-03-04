@@ -16,7 +16,7 @@ const MENU_ITEMS = [
 ];
 
 export default function SettingsPage() {
-  const [user, setUser] = useState<{ name: string | null; phone: string; image: string | null } | null>(null);
+  const [user, setUser] = useState<Awaited<ReturnType<typeof getUserProfile>>>(null);
   const [loading, setLoading] = useState(true);
 
   // Fetch the real user data on mount
@@ -24,7 +24,7 @@ export default function SettingsPage() {
     async function loadProfile() {
       try {
         const data = await getUserProfile();
-        setUser(data as any);
+        setUser(data);
       } catch (e) {
         console.error("Error loading profile", e);
       } finally {
@@ -37,7 +37,7 @@ export default function SettingsPage() {
   if (loading) return <div className="min-h-[60vh] flex items-center justify-center text-zinc-400"><Loader2 className="animate-spin mr-2"/> Loading...</div>;
 
   return (
-    <div className="w-full max-w-lg mx-auto space-y-8 pb-32 md:pb-12 px-5 md:px-0">
+    <div className="w-full max-w-lg mx-auto space-y-8 pb-4 px-5 md:px-0">
       
       {/* Title */}
       <motion.h1 
@@ -107,7 +107,7 @@ export default function SettingsPage() {
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ delay: 0.4 }}
-        onClick={() => logoutUser()} 
+        onClick={() => void logoutUser()} 
         className="w-full p-4 flex items-center justify-center gap-2 text-[#C72C48] font-bold bg-rose-50 rounded-2xl hover:bg-rose-100 active:scale-[0.98] transition-all shadow-sm border border-rose-100"
       >
         <LogOut size={20} />

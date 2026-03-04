@@ -3,27 +3,19 @@
 import React, { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useForm, useWatch } from "react-hook-form";
+import Image from "next/image";
 import { AlertCircle, Loader2, User, ArrowRight, CheckCircle2, Hash, ChevronLeft, Fingerprint, MapPin, Calendar as CalendarIcon, RefreshCw } from "lucide-react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { useRouter } from "next/navigation";
-import { clsx, type ClassValue } from "clsx";
-import { twMerge } from "tailwind-merge";
+import { toast } from "sonner";
 
 import { sendOtp, verifyOtpAndLogin, completeLogin, completeSignup, checkUserExists } from "@/actions/auth";
-
-// --- HELPERS ---
-function cn(...inputs: ClassValue[]) {
-  return twMerge(clsx(inputs));
-}
+import { COUNTRY_PHONE_CONFIG } from "@/config/countries";
+import { cn } from "@/lib/utils";
 
 // --- CONSTANTS ---
-const COUNTRIES = [
-  { code: "in", dial: "+91", label: "IN", limit: 10, placeholder: "98765 43210" },
-  { code: "us", dial: "+1",  label: "US", limit: 10, placeholder: "202 555 0123" },
-  { code: "gb", dial: "+44", label: "UK", limit: 10, placeholder: "7911 123456" },
-  { code: "au", dial: "+61", label: "AU", limit: 9,  placeholder: "412 345 678" },
-];
+const COUNTRIES = COUNTRY_PHONE_CONFIG;
 
 const INDIAN_STATES = [
   "Andhra Pradesh", "Arunachal Pradesh", "Assam", "Bihar", "Chhattisgarh", "Goa", "Gujarat", 
@@ -72,7 +64,7 @@ interface InputProps extends React.InputHTMLAttributes<HTMLInputElement | HTMLSe
   icon?: React.ReactNode;
   isPhone?: boolean;
   selectedCountry?: string; 
-  countryCodeProps?: any; 
+  countryCodeProps?: React.ComponentPropsWithoutRef<"select">;
 }
 
 const AuthInput = React.forwardRef<HTMLInputElement, InputProps>(
@@ -87,7 +79,13 @@ const AuthInput = React.forwardRef<HTMLInputElement, InputProps>(
           )}
           {isPhone && (
             <div className="absolute left-3 top-1/2 -translate-y-1/2 flex items-center h-full z-20">
-               <img src={`https://flagcdn.com/w40/${currentCountry.code}.png`} alt={currentCountry.label} className="w-5 h-auto rounded-[2px] shadow-sm object-cover" />
+               <Image
+                 src={`https://flagcdn.com/w40/${currentCountry.code}.png`}
+                 alt={`${currentCountry.label} flag`}
+                 width={20}
+                 height={14}
+                 className="h-auto w-5 rounded-[2px] object-cover shadow-sm"
+               />
                <select {...countryCodeProps} className="bg-transparent text-sm font-semibold text-zinc-700 focus:outline-none cursor-pointer appearance-none ml-2 py-1 text-center w-12">
                  {COUNTRIES.map((c) => (<option key={c.code} value={c.dial}>{c.dial}</option>))}
                </select>
@@ -110,7 +108,13 @@ const AuthInput = React.forwardRef<HTMLInputElement, InputProps>(
 );
 AuthInput.displayName = "AuthInput";
 
-const DatePicker = React.forwardRef<HTMLInputElement, { error?: string, value?: string, onChange?: (e: any) => void }>(({ error, value, onChange, ...props }, ref) => {
+type DatePickerProps = {
+  error?: string;
+  value?: string;
+  onChange?: React.ChangeEventHandler<HTMLInputElement>;
+};
+
+const DatePicker = React.forwardRef<HTMLInputElement, DatePickerProps>(({ error, value, onChange, ...props }, ref) => {
   const internalRef = useRef<HTMLInputElement>(null);
   return (
     <div className="space-y-1.5 w-full group">
@@ -139,7 +143,23 @@ const DatePicker = React.forwardRef<HTMLInputElement, { error?: string, value?: 
 })
 DatePicker.displayName = "DatePicker";
 
-const AuthButton = ({ children, isLoading, onClick, type = "button", variant = "primary", disabled }: any) => (
+type AuthButtonProps = {
+  children: React.ReactNode;
+  isLoading?: boolean;
+  onClick?: React.MouseEventHandler<HTMLButtonElement>;
+  type?: "button" | "submit" | "reset";
+  variant?: "primary" | "secondary";
+  disabled?: boolean;
+};
+
+const AuthButton = ({
+  children,
+  isLoading = false,
+  onClick,
+  type = "button",
+  variant = "primary",
+  disabled = false,
+}: AuthButtonProps) => (
   <motion.button whileHover={!disabled ? { scale: 1.01 } : {}} whileTap={!disabled ? { scale: 0.98 } : {}} type={type} onClick={onClick} disabled={isLoading || disabled} className={cn("relative w-full h-11 rounded-xl text-sm font-semibold transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-offset-2 flex items-center justify-center overflow-hidden", variant === "primary" ? "bg-[#C72C48] hover:bg-[#A61F38] text-white shadow-lg shadow-[#C72C48]/25 focus:ring-[#C72C48]" : "bg-white border border-zinc-200 text-zinc-700 hover:bg-zinc-50 hover:border-zinc-300 focus:ring-zinc-200", (isLoading || disabled) && "opacity-60 cursor-not-allowed")}>
     <AnimatePresence mode="wait">{isLoading ? <motion.div key="loader" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}><Loader2 className="w-5 h-5 animate-spin" /></motion.div> : <motion.div key="content" initial={{ opacity: 0, y: 5 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -5 }} className="flex items-center gap-2">{children}</motion.div>}</AnimatePresence>
   </motion.button>
@@ -187,7 +207,7 @@ export default function AuthPage() {
 
     const check = await checkUserExists(data.phone, data.countryCode);
     if (!check.exists) {
-        alert("Account does not exist. Please Sign Up.");
+        toast.info("Account does not exist. Please sign up.");
         setView("signup");
         setAuthMode("signup");
         setLoading(false);
@@ -207,7 +227,7 @@ export default function AuthPage() {
       setTimer(30);
     } else {
       setLoading(false);
-      alert("Error sending OTP");
+      toast.error(result.error || "Error sending OTP.");
     }
   };
 
@@ -218,7 +238,7 @@ export default function AuthPage() {
 
     const check = await checkUserExists(data.phone, data.countryCode);
     if (check.exists) {
-        alert("Account already exists. Please Login.");
+        toast.info("Account already exists. Please login.");
         setView("login");
         setAuthMode("login");
         setLoading(false);
@@ -240,19 +260,30 @@ export default function AuthPage() {
       setTimer(30);
     } else {
       setLoading(false);
-      alert("Error sending OTP");
+      toast.error(result.error || "Error sending OTP.");
     }
   };
 
   // 3. RESEND OTP
   const handleResend = () => {
     if (timer > 0) return;
-    const rawPhone = phoneForOtp.replace(/^\+91/, ""); 
+    const matchedCountry = COUNTRIES.find((country) => phoneForOtp.startsWith(country.dial));
+    if (!matchedCountry) {
+      toast.error("Unable to identify country code.");
+      return;
+    }
+
+    const rawPhone = phoneForOtp.slice(matchedCountry.dial.length);
     const formData = new FormData();
-    formData.append("countryCode", "+91");
+    formData.append("countryCode", matchedCountry.dial);
     formData.append("phone", rawPhone);
-    sendOtp(formData);
-    setTimer(30);
+    void sendOtp(formData).then((result) => {
+      if (!result.success) {
+        toast.error(result.error || "Unable to resend OTP.");
+        return;
+      }
+      setTimer(30);
+    });
   };
 
   // 4. VERIFY OTP
@@ -275,7 +306,7 @@ export default function AuthPage() {
                 setSuccess(true);
                 setTimeout(() => router.push("/onboarding"), 1500);
             } else {
-                alert("Signup Failed");
+                toast.error(createRes.error || "Signup failed.");
                 setLoading(false);
             }
         } else {
@@ -285,7 +316,7 @@ export default function AuthPage() {
                 setSuccess(true);
                 setTimeout(() => router.push("/dashboard"), 1500);
             } else {
-                alert("Login Failed");
+                toast.error(loginRes.error || "Login failed.");
                 setLoading(false);
             }
         }

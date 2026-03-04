@@ -13,7 +13,9 @@ import {
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { getDashboardData } from "@/actions/dashboard";
-import { getCafeLogoByName } from "@/features/cafe/config/branding";
+import { getCafeLogoByName, getCafeStampIconByName } from "@/features/cafe/config/branding";
+import { toast } from "sonner";
+import { Badge } from "@/components/ui/badge";
 
 // --- Types ---
 interface LoyaltyCard {
@@ -98,7 +100,7 @@ export default function CardsPage() {
   }, []);
 
   return (
-    <div className="w-full max-w-7xl mx-auto space-y-6 pb-32 md:pb-12">
+    <div className="w-full max-w-7xl mx-auto space-y-6 pb-4">
       
       {/* --- HEADER --- */}
       {/* Fixed top alignment with sticky feel handled by parent layout usually, 
@@ -164,6 +166,8 @@ export default function CardsPage() {
                 const isEligibleForReward = card.stamps >= card.maxStamps;
                 const gradient = getCardGradient(card.cafe.name);
                 const cafeLogo = getCafeLogoByName(card.cafe.name);
+                const stampLogo = getCafeStampIconByName(card.cafe.name);
+                const previewSlots = Math.min(card.maxStamps, 10);
 
                 return (
                   <motion.div
@@ -192,17 +196,19 @@ export default function CardsPage() {
                             {card.cafe.name}
                           </h3>
                           <div className="flex flex-wrap items-center gap-2">
-                            <span className="inline-flex items-center px-2.5 py-1 rounded-lg bg-white/20 backdrop-blur-md border border-white/10 text-[10px] font-bold uppercase tracking-wider">
+                            <Badge variant="neutral" className="border-white/30 bg-white/20 text-white">
                               {card.tier}
-                            </span>
+                            </Badge>
                             {isEligibleForReward && (
-                              <motion.span 
+                              <motion.div 
                                 initial={{ scale: 0.8, opacity: 0 }}
                                 animate={{ scale: 1, opacity: 1 }}
-                                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-yellow-400 text-black text-[10px] font-bold uppercase tracking-wider shadow-sm"
+                                className="inline-flex"
                               >
-                                <Gift size={10} strokeWidth={3} /> Free Reward
-                              </motion.span>
+                                <Badge variant="warning" className="shadow-sm">
+                                  <Gift size={10} strokeWidth={3} /> Free Reward
+                                </Badge>
+                              </motion.div>
                             )}
                           </div>
                         </div>
@@ -232,19 +238,26 @@ export default function CardsPage() {
                           </div>
                         </div>
                         
-                        {/* Stamp Slots */}
-                        <div className="flex justify-between gap-1.5 h-2 w-full">
-                          {[...Array(card.maxStamps)].map((_, i) => {
+                        <div className="flex flex-wrap gap-1.5">
+                          {Array.from({ length: previewSlots }).map((_, i) => {
                             const filled = i < card.stamps;
                             return (
-                              <div 
-                                key={i} 
-                                className={`h-full flex-1 rounded-full transition-all duration-700 ${
-                                  filled 
-                                    ? "bg-white shadow-[0_0_10px_rgba(255,255,255,0.5)] opacity-100" 
-                                    : "bg-white/20 opacity-100"
-                                }`} 
-                              />
+                              <div
+                                key={i}
+                                className={`relative h-5 w-5 overflow-hidden rounded-full border ${
+                                  filled ? "border-white/70 bg-white" : "border-white/25 bg-white/10"
+                                }`}
+                              >
+                                {filled ? (
+                                  <Image
+                                    src={stampLogo}
+                                    alt="Stamp logo"
+                                    fill
+                                    sizes="20px"
+                                    className="object-contain p-0.5"
+                                  />
+                                ) : null}
+                              </div>
                             );
                           })}
                         </div>
@@ -254,14 +267,21 @@ export default function CardsPage() {
                       <div className="relative z-10 flex gap-3 mt-auto pt-2">
                         {isEligibleForReward ? (
                           <button 
-                            onClick={(e) => { e.stopPropagation(); console.log("Redeem"); }}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              toast.info("Reward redemption will be available soon.");
+                            }}
                             className="flex-1 bg-white text-black h-11 rounded-xl text-xs sm:text-sm font-bold flex items-center justify-center gap-2 hover:bg-zinc-50 transition-colors shadow-lg active:scale-[0.98]"
                           >
                             <Gift size={16} className="text-[#C72C48]" /> Redeem Reward
                           </button>
                         ) : (
                           <button 
-                            onClick={(e) => { e.stopPropagation(); router.push("#scan"); }}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              toast.info("Use the scanner button on Home to earn stamps.");
+                              router.push("/dashboard");
+                            }}
                             className="flex-1 bg-white/20 backdrop-blur-md border border-white/30 h-11 rounded-xl text-xs sm:text-sm font-bold text-white flex items-center justify-center gap-2 hover:bg-white/30 transition-colors active:scale-[0.98]"
                           >
                             <QrCode size={16} /> Pay & Earn

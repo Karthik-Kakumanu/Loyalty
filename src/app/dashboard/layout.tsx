@@ -36,8 +36,12 @@ export default function DashboardLayout(props: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const [isScannerOpen, setIsScannerOpen] = useState(false);
+  const [scannerSession, setScannerSession] = useState(0);
 
-  const openScanner = useCallback(() => setIsScannerOpen(true), []);
+  const openScanner = useCallback(() => {
+    setScannerSession((current) => current + 1);
+    setIsScannerOpen(true);
+  }, []);
   const closeScanner = useCallback(() => setIsScannerOpen(false), []);
   const openSettings = useCallback(
     () => router.push("/dashboard/settings"),
@@ -49,7 +53,7 @@ export default function DashboardLayout(props: { children: React.ReactNode }) {
   );
   const handleScan = useCallback(
     (data: string) => {
-      console.log("Scanned:", data);
+      void data;
       closeScanner();
     },
     [closeScanner]
@@ -137,66 +141,58 @@ export default function DashboardLayout(props: { children: React.ReactNode }) {
       <div className="relative flex min-h-dvh w-full flex-1 flex-col md:pl-64 transition-all duration-300">
         <DashboardMobileHeader onOpenSettings={openSettings} />
 
-        <main className="mx-auto flex w-full max-w-7xl flex-1 px-0 pb-[calc(6.5rem+env(safe-area-inset-bottom))] pt-[calc(env(safe-area-inset-top)+4.625rem)] md:px-8 md:pb-12 md:pt-8">
+        <main className="mx-auto w-full max-w-7xl flex-1 px-0 pb-[calc(6rem+env(safe-area-inset-bottom))] pt-[calc(74px+env(safe-area-inset-top)+0.25rem)] md:px-8 md:pb-10 md:pt-8">
           {children}
         </main>
 
-        <nav className="pb-safe fixed bottom-0 left-0 right-0 z-50 h-[80px] border-t border-zinc-100 bg-white shadow-[0_-4px_20px_rgba(0,0,0,0.03)] md:hidden">
-          <div className="relative mx-auto flex h-full w-full max-w-md items-end justify-between px-6 pb-3">
-            {TABS.map((tab) => {
-              const isActive = pathname === tab.href;
-              const Icon = tab.icon;
+        <nav className="fixed inset-x-0 bottom-0 z-50 md:hidden">
+          <div className="mx-auto w-full max-w-md px-4 pb-safe">
+            <div className="relative h-[82px] rounded-t-[22px] border border-zinc-200 bg-white shadow-[0_-8px_24px_rgba(15,23,42,0.08)]">
+              <button
+                type="button"
+                onClick={openScanner}
+                aria-label="Open scanner"
+                className="absolute left-1/2 top-0 z-20 h-14 w-14 -translate-x-1/2 -translate-y-1/2 rounded-full border-[4px] border-white bg-[#C72C48] text-white shadow-[0_10px_24px_rgba(199,44,72,0.45)] transition-transform hover:bg-[#A61F38] active:scale-95"
+              >
+                <ScanLine size={24} strokeWidth={2.5} className="mx-auto" />
+              </button>
 
-              if (tab.isSpecial) {
-                return (
-                  <div
-                    key="scan"
-                    className="relative -top-8 flex w-[20%] justify-center"
-                  >
+              <div className="grid h-full grid-cols-5 items-end px-2 pb-3">
+                {TABS.map((tab) => {
+                  if (tab.isSpecial) {
+                    return <div key="scan-space" />;
+                  }
+
+                  const isActive = pathname === tab.href;
+                  const Icon = tab.icon;
+
+                  return (
                     <button
+                      key={tab.name}
                       type="button"
-                      onClick={openScanner}
-                      className="h-14 w-14 rounded-full border-[4px] border-white bg-[#C72C48] text-white ring-1 ring-zinc-100 shadow-[0_8px_20px_rgba(199,44,72,0.4)] transition-transform hover:bg-[#A61F38] active:scale-90"
+                      onClick={() => navigateTo(tab.href)}
+                      aria-label={`Navigate to ${tab.name}`}
+                      className={`mx-auto flex min-h-[44px] w-full max-w-[72px] flex-col items-center justify-end gap-1 rounded-xl pb-0.5 text-[11px] font-medium tracking-wide transition-colors ${
+                        isActive ? "text-[#C72C48]" : "text-zinc-400 hover:text-zinc-600"
+                      }`}
                     >
-                      <ScanLine size={24} strokeWidth={2.5} />
+                      <Icon size={20} strokeWidth={isActive ? 2.5 : 2} />
+                      <span className={isActive ? "font-bold" : ""}>{tab.name}</span>
                     </button>
-                  </div>
-                );
-              }
-
-              return (
-                <button
-                  key={tab.name}
-                  type="button"
-                  onClick={() => navigateTo(tab.href)}
-                  className={`flex h-full w-[20%] flex-col items-center justify-end gap-1 pb-1 text-[10px] font-medium tracking-wide transition-all duration-300 active:scale-95 ${
-                    isActive
-                      ? "text-[#C72C48]"
-                      : "text-zinc-400 hover:text-zinc-600"
-                  }`}
-                >
-                  <div
-                    className={`transition-transform duration-300 ${
-                      isActive ? "-translate-y-1" : "group-hover:-translate-y-1"
-                    }`}
-                  >
-                    <Icon size={22} strokeWidth={isActive ? 2.5 : 2} />
-                  </div>
-                  <span
-                    className={`transition-opacity duration-300 ${
-                      isActive ? "font-bold opacity-100" : "opacity-80"
-                    }`}
-                  >
-                    {tab.name}
-                  </span>
-                </button>
-              );
-            })}
+                  );
+                })}
+              </div>
+            </div>
           </div>
         </nav>
       </div>
 
-      <Scanner isOpen={isScannerOpen} onClose={closeScanner} onScan={handleScan} />
+      <Scanner
+        key={scannerSession}
+        isOpen={isScannerOpen}
+        onClose={closeScanner}
+        onScan={handleScan}
+      />
     </div>
   );
 }

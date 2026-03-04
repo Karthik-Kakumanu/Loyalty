@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import { Toaster } from "sonner";
 import "./globals.css";
 import { InstallPrompt } from "@/components/pwa/InstallPrompt";
 
@@ -20,8 +21,8 @@ export const viewport: Viewport = {
   themeColor: "#C72C48",
   width: "device-width",
   initialScale: 1,
-  maximumScale: 1,
-  userScalable: false,
+  maximumScale: 5,
+  userScalable: true,
   interactiveWidget: "resizes-content",
 };
 
@@ -31,13 +32,13 @@ export const metadata: Metadata = {
   description: "Your favorite cafes in one app.",
   manifest: "/manifest.json",
   icons: {
-    icon: "/icons/icon-192x192.png",
-    apple: "/icons/icon-192x192.png", // Used for Home Screen on iOS
+    icon: "/icon/icon-192x193.png",
+    apple: "/icon/icon-192x193.png",
   },
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
-    title: "Revistra ",
+    title: "Revistra",
   },
   formatDetection: {
     telephone: false, // Prevents blue links on phone numbers (we style them ourselves)
@@ -51,8 +52,9 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className={`${geistSans.variable} ${geistMono.variable} antialiased bg-[#F8F9FA] min-h-dvh overflow-x-hidden`}>
+      <body className={`${geistSans.variable} ${geistMono.variable} min-h-dvh overflow-x-hidden bg-[var(--bg-app)] text-[var(--foreground)] antialiased`}>
         {children}
+        <Toaster position="top-center" richColors closeButton />
         <InstallPrompt />
       </body>
     </html>

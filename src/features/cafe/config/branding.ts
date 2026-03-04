@@ -20,3 +20,18 @@ export function getCafeLogoByName(cafeName?: string) {
 export function getCafeStampIconByName(cafeName?: string) {
   return getCafeLogoByName(cafeName);
 }
+
+export function isFallbackCafeLogo(logoSrc?: string | null) {
+  return !logoSrc || logoSrc === FALLBACK_LOGO;
+}
+
+export function getCafeMonogram(cafeName?: string) {
+  const clean = (cafeName || "")
+    .trim()
+    .split(/\s+/)
+    .map((word) => word[0]?.toUpperCase() ?? "")
+    .join("")
+    .slice(0, 2);
+
+  return clean || "RV";
+}

@@ -1,80 +1,174 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Image from "next/image";
 import { motion } from "framer-motion";
-import { ChevronLeft, Loader2, CreditCard, MessageSquareText } from "lucide-react";
+import { ArrowUpRight, ChevronLeft, CreditCard, Loader2, MessageSquareText, Sparkles, Trophy } from "lucide-react";
+import { toast } from "sonner";
 import { getDashboardData } from "@/actions/dashboard";
-import { getCafeLogoByName, getCafeStampIconByName } from "@/features/cafe/config/branding";
+import {
+  getCafeLogoByName,
+  getCafeMonogram,
+  getCafeStampIconByName,
+  isFallbackCafeLogo,
+} from "@/features/cafe/config/branding";
 
 type LoyaltyCardData = {
   id: string;
-  cardSerial?: string | null;
+  cardSerial: string | null;
   stamps: number;
   maxStamps: number;
-  tier?: string | null;
+  tier: string | null;
   cafe: {
     id: string;
     name: string;
   };
 };
 
-const STARTER_STAMP_COUNT = 10;
-const STARTER_STAMP_CONDITIONS = [
-  "Buy 1 coffee, get 1 stamp",
-  "Buy 1 cake, get 1 stamp",
-];
+const TARGET_STAMP_COUNT = 10;
+const DEMO_EXTRA_FILLED_STAMP = 1;
+const EARN_RULES = [
+  "Every visit with a bill of INR 1,000 earns 1 stamp.",
+  "Stamps are credited after successful bill settlement.",
+  "Complete all stamps to unlock your reward instantly.",
+] as const;
 
 type CafeTheme = {
   pageBg: string;
-  bg: string;
+  text: string;
+  muted: string;
   accent: string;
   accentDeep: string;
-  text: string;
-  mutedText: string;
-  ring: string;
-  panelBg: string;
+  panel: string;
   panelSoft: string;
-  shadow: string;
-  tagline?: string;
+  ring: string;
+  cardGradient: string;
+  badgeBg: string;
+  badgeText: string;
+  glow: string;
 };
 
-function getCafeTheme(cafeName?: string) {
+function resolveTheme(cafeName?: string): CafeTheme {
   const normalized = (cafeName || "").toLowerCase();
+
   if (normalized.includes("cake") || normalized.includes("roven")) {
     return {
-      pageBg: "#f4f2d9",
-      bg: "from-[#f6f4de] via-[#f3efcf] to-[#f2e4d6]",
-      accent: "#cf5469",
-      accentDeep: "#b65e70",
-      text: "#5d3444",
-      mutedText: "#896575",
-      ring: "#e8d8b9",
-      panelBg: "#fffbea",
-      panelSoft: "#f7efd9",
-      shadow: "0 14px 30px -20px rgba(93,60,52,0.35)",
-      tagline: "Artisanal patisserie & coffee atelier",
+      pageBg: "#f7f3e9",
+      text: "#412a27",
+      muted: "#7b5f57",
+      accent: "#c74856",
+      accentDeep: "#962e3f",
+      panel: "#fffdf8",
+      panelSoft: "#f6eee2",
+      ring: "#ead8c4",
+      cardGradient: "from-[#fff4e5] via-[#f9dec9] to-[#f2c9b3]",
+      badgeBg: "#fbe4d8",
+      badgeText: "#8f3845",
+      glow: "rgba(199,72,86,0.23)",
     };
   }
 
   return {
-    pageBg: "#f8fafc",
-    bg: "from-[#f8fafc] via-[#eef2ff] to-[#e2e8f0]",
-    accent: "#334155",
-    accentDeep: "#1E293B",
-    text: "#0F172A",
-    mutedText: "#475569",
-    ring: "#CBD5E1",
-    panelBg: "#ffffff",
-    panelSoft: "#f1f5f9",
-    shadow: "0 20px 40px -22px rgba(15,23,42,0.55)",
-    tagline: "Curated coffee for everyday rituals",
+    pageBg: "#f2f5f9",
+    text: "#10233a",
+    muted: "#4e6076",
+    accent: "#1e4e88",
+    accentDeep: "#153a66",
+    panel: "#ffffff",
+    panelSoft: "#edf3fb",
+    ring: "#d4deea",
+    cardGradient: "from-[#eaf1fb] via-[#d7e6f7] to-[#c2d8f2]",
+    badgeBg: "#dfeaf8",
+    badgeText: "#183b63",
+    glow: "rgba(30,78,136,0.24)",
   };
 }
 
+function formatMembershipId(card: LoyaltyCardData) {
+  if (card.cardSerial) return card.cardSerial;
+  return `MEM-${card.id.slice(-6).toUpperCase()}`;
+}
+
+function StampToken({
+  index,
+  isFilled,
+  theme,
+  stampLogo,
+}: {
+  index: number;
+  isFilled: boolean;
+  theme: CafeTheme;
+  stampLogo: string;
+}) {
+  return (
+    <motion.div
+      layout
+      initial={{ opacity: 0, scale: 0.8 }}
+      animate={{ opacity: 1, scale: 1 }}
+      transition={{ delay: index * 0.04, type: "spring", stiffness: 260, damping: 20 }}
+      className="relative aspect-square"
+    >
+      <div
+        className="absolute inset-0 rounded-full border shadow-[0_8px_18px_-10px_rgba(15,23,42,0.35)]"
+        style={{
+          borderColor: isFilled ? theme.accent : theme.ring,
+          background: isFilled
+            ? `radial-gradient(circle at 30% 20%, #ffffff, ${theme.panelSoft})`
+            : theme.panelSoft,
+        }}
+      />
+
+      <div className="absolute inset-[3px] overflow-hidden rounded-full border bg-white" style={{ borderColor: theme.ring }}>
+        <Image
+          src={stampLogo}
+          alt="Stamp logo"
+          fill
+          sizes="48px"
+          className={`object-contain p-2 transition-all duration-300 ${
+            isFilled ? "opacity-100 saturate-100" : "opacity-35 grayscale"
+          }`}
+        />
+      </div>
+    </motion.div>
+  );
+}
+
+function BrandCoin({
+  logoSrc,
+  monogram,
+  theme,
+}: {
+  logoSrc: string;
+  monogram: string;
+  theme: CafeTheme;
+}) {
+  const useLogo = !isFallbackCafeLogo(logoSrc);
+
+  return (
+    <div className="relative h-20 w-20 shrink-0">
+      <div
+        className="absolute inset-0 rounded-[26px] blur-[14px]"
+        style={{ backgroundColor: theme.glow }}
+      />
+      <div
+        className="relative h-full w-full overflow-hidden rounded-[26px] border bg-white shadow-[0_12px_30px_-16px_rgba(15,23,42,0.5)]"
+        style={{ borderColor: theme.ring }}
+      >
+        {useLogo ? (
+          <Image src={logoSrc} alt="Cafe logo" fill sizes="80px" className="object-contain p-3" />
+        ) : (
+          <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-zinc-900 to-zinc-700 text-2xl font-black text-white">
+            {monogram}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export default function LoyaltyCardPage() {
-  const { id } = useParams() as { id: string };
+  const { id } = useParams<{ id: string }>();
   const router = useRouter();
   const [card, setCard] = useState<LoyaltyCardData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -83,304 +177,222 @@ export default function LoyaltyCardPage() {
     async function fetchCard() {
       try {
         const data = await getDashboardData();
-        const found = (data.myCards as LoyaltyCardData[]).find((c) => c.id === id);
-
-        if (!found) {
-          setCard(null);
-          return;
-        }
-
-        // Starter pack currently active for Cake Roven: fixed 10 stamps.
-        const normalizedCard = {
-          ...found,
-          maxStamps: STARTER_STAMP_COUNT,
-        };
-
-        setCard(normalizedCard);
-
+        const found = (data.myCards as LoyaltyCardData[]).find((candidate) => candidate.id === id);
+        setCard(found ?? null);
       } finally {
         setLoading(false);
       }
     }
-    fetchCard();
+
+    void fetchCard();
   }, [id]);
 
-  const theme: CafeTheme = getCafeTheme(card?.cafe?.name);
+  const theme = useMemo(() => resolveTheme(card?.cafe.name), [card?.cafe.name]);
 
   if (loading) {
     return (
-      <main className="h-dvh bg-[#f4f2d9] flex items-center justify-center">
-        <Loader2 className="text-[#cf5469] w-10 h-10 animate-spin" />
+      <main className="flex h-dvh items-center justify-center" style={{ backgroundColor: theme.pageBg }}>
+        <Loader2 className="h-10 w-10 animate-spin" style={{ color: theme.accent }} />
       </main>
     );
   }
 
   if (!card) {
     return (
-      <main className="h-dvh bg-[#f4f2d9] px-4 text-[#5d3444]">
-        <div className="mx-auto flex h-full w-full max-w-lg flex-col items-center justify-center gap-4 text-center">
-          <p className="text-lg font-semibold">Card not found</p>
+      <main className="flex h-dvh items-center justify-center px-4" style={{ backgroundColor: theme.pageBg, color: theme.text }}>
+        <div className="w-full max-w-md rounded-3xl border bg-white p-8 text-center shadow-[0_18px_40px_-22px_rgba(15,23,42,0.35)]" style={{ borderColor: theme.ring }}>
+          <h1 className="text-xl font-bold">Card not found</h1>
+          <p className="mt-2 text-sm" style={{ color: theme.muted }}>
+            This loyalty card is unavailable or no longer active.
+          </p>
           <button
+            type="button"
             onClick={() => router.push("/dashboard/cards")}
-            className="min-h-[44px] rounded-xl bg-[#cf5469] px-5 py-2.5 text-sm font-semibold text-white transition hover:brightness-95"
+            className="mt-6 inline-flex min-h-[44px] items-center justify-center rounded-2xl px-5 py-2.5 text-sm font-bold text-white"
+            style={{ backgroundColor: theme.accentDeep }}
           >
-            Go to My Cards
+            Back to wallet
           </button>
         </div>
       </main>
     );
   }
 
-  const demoStampBoost = 1; // Demo-only boost to preview one extra collected stamp.
-  const cappedStamps = Math.min((card.stamps || 0) + demoStampBoost, STARTER_STAMP_COUNT);
-  const remaining = Math.max(STARTER_STAMP_COUNT - cappedStamps, 0);
-  const progressPercentage = Math.min((cappedStamps / STARTER_STAMP_COUNT) * 100, 100);
   const logoSrc = getCafeLogoByName(card.cafe.name);
-  const stampIconSrc = getCafeStampIconByName(card.cafe.name);
+  const stampLogo = getCafeStampIconByName(card.cafe.name);
+  const monogram = getCafeMonogram(card.cafe.name);
+  const memberId = formatMembershipId(card);
+  const targetStamps = Math.max(card.maxStamps || TARGET_STAMP_COUNT, TARGET_STAMP_COUNT);
+  const actualEarnedStamps = Math.min(card.stamps, targetStamps);
+  const previewEarnedStamps = Math.min(actualEarnedStamps + DEMO_EXTRA_FILLED_STAMP, targetStamps);
+  const remaining = Math.max(targetStamps - previewEarnedStamps, 0);
+  const progress = targetStamps ? Math.round((previewEarnedStamps / targetStamps) * 100) : 0;
 
   return (
     <main
-      className="relative min-h-dvh overflow-x-hidden px-4 pb-24 pt-3 sm:px-5 sm:pt-4 selection:bg-[#cf5469] selection:text-white"
+      className="relative min-h-full overflow-x-hidden px-4 pb-6 pt-4 sm:px-5"
       style={{ backgroundColor: theme.pageBg, color: theme.text }}
     >
-      {/* Lux blurred background glow */}
-      <div className="pointer-events-none fixed inset-x-0 top-0 -z-10 mx-auto h-[420px] w-full max-w-3xl">
-        <div className="absolute inset-x-10 top-6 h-64 rounded-[40px] bg-gradient-to-br from-white/70 via-white/10 to-transparent blur-3xl" />
-        <div className="absolute left-[-5%] top-10 h-40 w-40 rounded-full bg-[radial-gradient(circle_at_30%_30%,rgba(255,255,255,0.9),transparent_60%)] opacity-70" />
-        <div className="absolute right-[-8%] top-24 h-52 w-52 rounded-full bg-[radial-gradient(circle_at_30%_30%,rgba(255,255,255,0.85),transparent_55%)] opacity-70" />
+      <div className="pointer-events-none fixed inset-0 -z-10 overflow-hidden">
+        <div
+          className="absolute left-1/2 top-[-10%] h-[330px] w-[330px] -translate-x-1/2 rounded-full blur-3xl"
+          style={{ backgroundColor: theme.glow }}
+        />
+        <div className="absolute bottom-[-22%] right-[-10%] h-[300px] w-[300px] rounded-full bg-white/40 blur-3xl" />
       </div>
 
-      <div className="mx-auto w-full max-w-xl space-y-6">
-        <div className="flex items-start gap-3.5 sm:gap-4">
+      <div className="mx-auto w-full max-w-xl space-y-5">
+        <div className="flex items-center justify-between">
           <button
+            type="button"
             onClick={() => router.back()}
-            className="inline-flex h-11 w-11 min-h-[44px] min-w-[44px] items-center justify-center rounded-full border bg-white/70 shadow-sm transition-colors hover:bg-white"
-            style={{ borderColor: theme.ring, color: theme.accentDeep }}
             aria-label="Go back"
+            className="inline-flex h-11 w-11 min-h-[44px] min-w-[44px] items-center justify-center rounded-full border bg-white/80 shadow-sm backdrop-blur"
+            style={{ borderColor: theme.ring, color: theme.accentDeep }}
           >
             <ChevronLeft size={22} />
           </button>
 
-          <motion.section
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.3 }}
-            className={`relative min-w-0 flex-1 overflow-hidden rounded-[30px] border bg-gradient-to-br ${theme.bg} p-[1px]`}
-            style={{ borderColor: theme.ring, boxShadow: theme.shadow }}
-          >
-            {/* Lux, glassy inner layer */}
-            <div
-              className="relative h-full w-full rounded-[28px] bg-gradient-to-br from-white/80 via-white/60 to-white/40 p-4 shadow-[0_18px_40px_rgba(15,23,42,0.25)] backdrop-blur-xl sm:p-5"
-              style={{ borderColor: `${theme.ring}80`, borderWidth: 1 }}
-            >
-              <div className="pointer-events-none absolute inset-0 opacity-60">
-                <div className="absolute -left-24 top-[-40%] h-48 w-48 rotate-[-18deg] bg-[radial-gradient(circle_at_30%_30%,rgba(255,255,255,0.85),transparent_60%)]" />
-                <div className="absolute -right-10 bottom-[-30%] h-40 w-40 rotate-[18deg] bg-[conic-gradient(from_210deg_at_50%_50%,rgba(255,255,255,0.9),transparent_55%)]" />
-              </div>
-
-              <header className="relative z-10 mb-4 flex items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <p
-                    className="text-[10px] font-semibold uppercase tracking-[0.22em] text-black/40"
-                    style={{ color: theme.mutedText }}
-                  >
-                    {card.tier || "Member"} · Loyalty Circle
-                  </p>
-                  <h1
-                    className="mt-1 text-[clamp(1.7rem,6.2vw,2.25rem)] font-extrabold leading-tight tracking-tight"
-                    style={{ color: theme.text }}
-                  >
-                    {card.cafe.name}
-                  </h1>
-                  {theme.tagline && (
-                    <p className="mt-1 text-xs font-medium uppercase tracking-[0.24em]" style={{ color: theme.mutedText }}>
-                      {theme.tagline}
-                    </p>
-                  )}
-                </div>
-
-                <div className="relative shrink-0">
-                  <div className="absolute inset-0 translate-y-1 rounded-full bg-gradient-to-br from-white/90 to-transparent blur-md" />
-                  <div
-                    className="relative h-16 w-16 overflow-hidden rounded-full border border-white/60 bg-gradient-to-br from-white/90 via-white/80 to-white/70 shadow-[0_10px_25px_rgba(15,23,42,0.25)] sm:h-20 sm:w-20"
-                    style={{
-                      borderColor: theme.ring,
-                    }}
-                  >
-                    <Image
-                      src={logoSrc}
-                      alt="Cafe brand logo"
-                      fill
-                      className="object-contain p-1.5"
-                      sizes="(max-width: 640px) 64px, 80px"
-                    />
-                  </div>
-                </div>
-              </header>
-
-              <div
-                className="relative mt-2 rounded-2xl border bg-gradient-to-br from-white/80 via-white/70 to-white/60 p-4"
-                style={{
-                  borderColor: theme.ring,
-                }}
-              >
-                <div className="absolute inset-x-4 top-0 h-px bg-gradient-to-r from-transparent via-white/80 to-transparent" />
-
-                <div className="mb-2 flex items-end justify-between gap-3">
-                  <div className="min-w-0">
-                    <p
-                      className="text-[10px] font-bold uppercase tracking-[0.16em]"
-                      style={{ color: theme.mutedText }}
-                    >
-                      Member ID
-                    </p>
-                    <p className="truncate font-mono text-[13px] font-semibold" style={{ color: theme.text }}>
-                      {card.cardSerial || "MEMBER-PENDING"}
-                    </p>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-[10px] font-semibold uppercase tracking-[0.16em]" style={{ color: theme.mutedText }}>
-                      Stamps
-                    </p>
-                    <p className="text-2xl font-black leading-none" style={{ color: theme.accentDeep }}>
-                      {cappedStamps}
-                      <span className="text-base font-semibold" style={{ color: theme.mutedText }}>
-                        /{STARTER_STAMP_COUNT}
-                      </span>
-                    </p>
-                  </div>
-                </div>
-
-                <div className="mt-2 space-y-1.5">
-                  <div className="h-2.5 overflow-hidden rounded-full bg-black/5" style={{ backgroundColor: theme.panelSoft }}>
-                    <motion.div
-                      initial={{ width: 0 }}
-                      animate={{ width: `${progressPercentage}%` }}
-                      transition={{ duration: 0.55 }}
-                      className="h-full rounded-full"
-                      style={{
-                        backgroundImage: `linear-gradient(90deg, ${theme.accent}, ${theme.accentDeep})`,
-                      }}
-                    />
-                  </div>
-                  <p className="text-[11px] font-medium tracking-wide" style={{ color: theme.mutedText }}>
-                    You are{" "}
-                    <span className="font-semibold" style={{ color: theme.accentDeep }}>
-                      {remaining} stamp{remaining === 1 ? "" : "s"}
-                    </span>{" "}
-                    away from your next treat.
-                  </p>
-                </div>
-              </div>
-            </div>
-          </motion.section>
+          <p className="rounded-full px-3 py-1 text-[11px] font-bold uppercase tracking-[0.14em]" style={{ backgroundColor: theme.badgeBg, color: theme.badgeText }}>
+            Premium loyalty pass
+          </p>
         </div>
 
-        <section
-          className="rounded-[24px] border p-4 shadow-sm"
-          style={{ borderColor: theme.ring, backgroundColor: theme.panelBg }}
+        <motion.section
+          initial={{ opacity: 0, y: 18 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.28 }}
+          className={`overflow-hidden rounded-[34px] border bg-gradient-to-br ${theme.cardGradient} p-5 shadow-[0_26px_50px_-32px_rgba(15,23,42,0.65)]`}
+          style={{ borderColor: theme.ring }}
         >
-          <div className="mb-3 flex items-center justify-between">
-            <h2 className="text-sm font-bold uppercase tracking-[0.18em]" style={{ color: theme.mutedText }}>
-              Stamp Progress
-            </h2>
-            <span className="text-xs font-bold" style={{ color: theme.accentDeep }}>
-              {remaining} stamps to unlock reward
-            </span>
+          <div className="flex items-start justify-between gap-4">
+            <div className="min-w-0">
+              <p className="text-[11px] font-bold uppercase tracking-[0.16em]" style={{ color: theme.muted }}>
+                {card.tier || "Member"} - Private Club
+              </p>
+              <h1 className="mt-1 truncate text-[clamp(1.6rem,6.4vw,2.3rem)] font-black leading-tight tracking-tight">
+                {card.cafe.name}
+              </h1>
+              <p className="mt-1 text-xs font-medium uppercase tracking-[0.2em]" style={{ color: theme.muted }}>
+                curated rewards - reserved members
+              </p>
+            </div>
+            <BrandCoin logoSrc={logoSrc} monogram={monogram} theme={theme} />
           </div>
 
-          <div className="grid grid-cols-5 gap-2.5">
-            {[...Array(STARTER_STAMP_COUNT)].map((_, i) => {
-              const filled = i < cappedStamps;
-              return (
-                <div
-                  key={i}
-                  className="relative aspect-square overflow-hidden rounded-full border flex items-center justify-center"
+          <div className="mt-5 rounded-2xl border bg-white/70 p-4 backdrop-blur" style={{ borderColor: theme.ring }}>
+            <div className="flex items-end justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-[10px] font-bold uppercase tracking-[0.16em]" style={{ color: theme.muted }}>
+                  Membership ID
+                </p>
+                <p className="truncate font-mono text-sm font-semibold">{memberId}</p>
+              </div>
+              <div className="text-right">
+                <p className="text-[10px] font-bold uppercase tracking-[0.16em]" style={{ color: theme.muted }}>
+                  Progress
+                </p>
+                <p className="text-2xl font-black" style={{ color: theme.accentDeep }}>
+                  {previewEarnedStamps}
+                  <span className="text-base font-semibold" style={{ color: theme.muted }}>
+                    /{targetStamps}
+                  </span>
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-3">
+              <div className="h-2.5 overflow-hidden rounded-full" style={{ backgroundColor: theme.panelSoft }}>
+                <motion.div
+                  initial={{ width: 0 }}
+                  animate={{ width: `${progress}%` }}
+                  transition={{ duration: 0.45 }}
+                  className="h-full rounded-full"
                   style={{
-                    borderColor: filled ? theme.accent : theme.ring,
-                    backgroundColor: filled ? `${theme.accent}24` : theme.panelSoft,
+                    background: `linear-gradient(90deg, ${theme.accent} 0%, ${theme.accentDeep} 100%)`,
                   }}
-                >
-                  {filled ? (
-                    <Image
-                      src={stampIconSrc}
-                      alt="Collected stamp"
-                      fill
-                      sizes="32px"
-                      className="rounded-full object-cover"
-                    />
-                  ) : (
-                    <span className="text-[10px] font-bold" style={{ color: theme.mutedText }}>
-                      {i + 1}
-                    </span>
-                  )}
-                </div>
-              );
-            })}
+                />
+              </div>
+              <p className="mt-2 text-[11px] font-medium" style={{ color: theme.muted }}>
+                {remaining === 0
+                  ? "Reward unlocked. Redeem at counter."
+                  : `${remaining} more stamp${remaining === 1 ? "" : "s"} to unlock your reward.`}
+              </p>
+            </div>
+          </div>
+        </motion.section>
+
+        <section className="rounded-[28px] border p-4 shadow-sm" style={{ borderColor: theme.ring, backgroundColor: theme.panel }}>
+          <div className="mb-3 flex items-center justify-between">
+            <h2 className="text-sm font-bold uppercase tracking-[0.16em]" style={{ color: theme.muted }}>
+              Signature stamp board
+            </h2>
+            <div className="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-bold" style={{ backgroundColor: theme.badgeBg, color: theme.badgeText }}>
+              <Trophy size={12} />
+              {progress}%
+            </div>
+          </div>
+
+          <div className="grid grid-cols-5 gap-2.5 sm:gap-3">
+            {Array.from({ length: targetStamps }).map((_, index) => (
+              <StampToken
+                key={index}
+                index={index}
+                isFilled={index < previewEarnedStamps}
+                theme={theme}
+                stampLogo={stampLogo}
+              />
+            ))}
           </div>
         </section>
 
-        <section
-          className="rounded-[24px] border p-4 shadow-sm"
-          style={{ borderColor: theme.ring, backgroundColor: theme.panelBg }}
-        >
+        <section className="rounded-[28px] border p-4 shadow-sm" style={{ borderColor: theme.ring, backgroundColor: theme.panel }}>
           <div className="mb-3 flex items-center gap-2">
-            <CreditCard size={16} style={{ color: theme.accentDeep }} />
-            <h2 className="text-sm font-bold uppercase tracking-[0.18em]" style={{ color: theme.mutedText }}>
-              Earn Stamps
+            <Sparkles size={16} style={{ color: theme.accentDeep }} />
+            <h2 className="text-sm font-bold uppercase tracking-[0.16em]" style={{ color: theme.muted }}>
+              Stamp rules
             </h2>
           </div>
 
-          <div className="grid gap-2">
-            {STARTER_STAMP_CONDITIONS.map((condition, idx) => (
+          <div className="space-y-2.5">
+            {EARN_RULES.map((rule, idx) => (
               <div
-                key={condition}
-                className="rounded-xl border px-3 py-2.5 text-sm font-medium"
-                style={{
-                  borderColor: theme.ring,
-                  backgroundColor: theme.panelSoft,
-                  color: theme.text,
-                }}
+                key={rule}
+                className="flex items-start gap-2 rounded-xl border px-3 py-2.5 text-sm font-medium"
+                style={{ borderColor: theme.ring, backgroundColor: theme.panelSoft }}
               >
                 <span
-                  className="mr-1.5 inline-flex h-5 w-5 items-center justify-center rounded-full text-xs font-bold"
-                  style={{ backgroundColor: `${theme.accent}28`, color: theme.accentDeep }}
+                  className="mt-0.5 inline-flex h-5 w-5 items-center justify-center rounded-full text-[11px] font-bold"
+                  style={{ backgroundColor: theme.badgeBg, color: theme.badgeText }}
                 >
                   {idx + 1}
                 </span>
-                {condition}
+                <span>{rule}</span>
               </div>
             ))}
           </div>
-
-          <p
-            className="mt-3 rounded-xl px-3 py-2 text-sm font-semibold"
-            style={{ backgroundColor: theme.panelSoft, color: theme.accentDeep }}
-          >
-            Complete {STARTER_STAMP_COUNT} stamps and unlock your next reward item on the house.
-          </p>
         </section>
 
         <div className="grid grid-cols-2 gap-3">
           <button
-            onClick={() => console.log("TODO: Integrate Razorpay checkout", card.id)}
-            className="inline-flex h-11 min-h-[44px] items-center justify-center gap-2 rounded-2xl text-sm font-bold text-white shadow-md active:scale-[0.98]"
+            type="button"
+            onClick={() => toast.info("Payment gateway integration is coming soon.")}
+            className="inline-flex min-h-[44px] items-center justify-center gap-2 rounded-2xl px-4 py-3 text-sm font-bold text-white shadow-md transition-transform active:scale-[0.98]"
             style={{ backgroundColor: theme.accentDeep }}
           >
             <CreditCard size={16} />
             Pay
           </button>
+
           <button
+            type="button"
             onClick={() => router.push(`/dashboard/cafe/${card.cafe.id}`)}
-            className="inline-flex h-11 min-h-[44px] items-center justify-center gap-2 rounded-2xl border text-sm font-bold active:scale-[0.98]"
-            style={{
-              borderColor: theme.ring,
-              backgroundColor: theme.panelBg,
-              color: theme.accentDeep,
-            }}
+            className="inline-flex min-h-[44px] items-center justify-center gap-2 rounded-2xl border px-4 py-3 text-sm font-bold transition-transform active:scale-[0.98]"
+            style={{ borderColor: theme.ring, backgroundColor: theme.panel, color: theme.accentDeep }}
           >
             <MessageSquareText size={16} />
-            Feedback
+            Visit Cafe
+            <ArrowUpRight size={14} />
           </button>
         </div>
       </div>

@@ -1,36 +1,55 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Revistra PWA
 
-## Getting Started
+Production-oriented loyalty platform built with Next.js App Router, TypeScript, TailwindCSS, Prisma, and server actions.
 
-First, run the development server:
+## Tech Stack
+
+- Next.js (App Router)
+- TypeScript
+- TailwindCSS
+- Prisma + PostgreSQL
+- Server Actions for backend workflows
+
+## Quick Start
 
 ```bash
+npm install
+npx prisma generate
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open `http://localhost:3000`.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Environment Variables
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Create `.env` from `.env.example`.
 
-## Learn More
+Required:
 
-To learn more about Next.js, take a look at the following resources:
+- `DATABASE_URL`
+- `SESSION_SECRET` (minimum 32 characters)
+- `OTP_API_KEY` (optional for OTP provider integration)
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Scripts
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+- `npm run dev` - local development
+- `npm run build` - production build
+- `npm run start` - run built app
+- `npm run lint` - eslint checks
+- `npm run backfill:card-serials` - normalize legacy card serials
 
-## Deploy on Vercel
+## Architecture
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+- `src/app` - routes and UI shells
+- `src/actions` - server-side business actions
+- `src/components` - reusable UI and layout primitives
+- `src/lib` - utilities, env/session, validation
+- `src/features` - feature-specific config and modules
+- `prisma` - schema and scripts
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Production Notes
+
+- Do not commit real secrets to Git.
+- Rotate any leaked credentials immediately.
+- Keep Prisma migrations and schema changes versioned.
+- Run `npm run lint` and `npx tsc --noEmit` before deployment.

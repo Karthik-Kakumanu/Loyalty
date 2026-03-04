@@ -2,13 +2,18 @@
 
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
-import { CalendarClock, MapPin, ChevronRight, Clock, Loader2, CalendarCheck, Navigation } from "lucide-react";
+import { CalendarClock, MapPin, ChevronRight, Clock, CalendarCheck, Navigation } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { getReserveData } from "@/actions/dashboard";
 
 // --- UTILS: Calculate Real Distance ---
-function calculateDistance(lat1: number, lon1: number, lat2: number, lon2: number) {
-  if (!lat1 || !lon1 || !lat2 || !lon2) return null;
+function calculateDistance(
+  lat1: number | null | undefined,
+  lon1: number | null | undefined,
+  lat2: number | null | undefined,
+  lon2: number | null | undefined,
+) {
+  if (lat1 == null || lon1 == null || lat2 == null || lon2 == null) return null;
   const R = 6371; // km
   const dLat = (lat2 - lat1) * (Math.PI / 180);
   const dLon = (lon2 - lon1) * (Math.PI / 180);
@@ -20,12 +25,16 @@ function calculateDistance(lat1: number, lon1: number, lat2: number, lon2: numbe
 }
 
 // Helper for image handling (URL vs Tailwind Class)
-const getBgStyle = (imageString: string) => {
+const getBgStyle = (imageString: string | null | undefined) => {
   if (imageString?.startsWith("http") || imageString?.startsWith("/")) {
     return { backgroundImage: `url(${imageString})` };
   }
   return {}; 
 };
+
+type ReserveData = Awaited<ReturnType<typeof getReserveData>>;
+type ReserveCafe = ReserveData["cafes"][number];
+type UserReservation = ReserveData["reservations"][number];
 
 // --- Component: Reserve Skeleton ---
 const ReserveSkeleton = () => (
@@ -41,9 +50,10 @@ const ReserveSkeleton = () => (
 );
 
 export default function ReservePage() {
-  const [data, setData] = useState<any>(null);
+  const [data, setData] = useState<ReserveData | null>(null);
   const [loading, setLoading] = useState(true);
   const [userLoc, setUserLoc] = useState<{lat: number, lng: number} | null>(null);
+  const reservations = data?.reservations ?? [];
 
   useEffect(() => {
     async function load() {
@@ -65,14 +75,14 @@ export default function ReservePage() {
     }
   }, []);
 
-  const handleNavigate = (lat?: number, lng?: number) => {
-    if (lat && lng) {
-      window.open(`https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`, '_blank');
+  const handleNavigate = (lat?: number | null, lng?: number | null) => {
+    if (lat !== null && lat !== undefined && lng !== null && lng !== undefined) {
+      window.open(`https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`, "_blank", "noopener,noreferrer");
     }
   };
 
   return (
-    <div className="w-full max-w-7xl mx-auto space-y-6 pb-32 md:pb-12">
+    <div className="w-full max-w-7xl mx-auto space-y-6 pb-4">
       
       {/* HEADER */}
       <motion.div 
@@ -97,11 +107,14 @@ export default function ReservePage() {
         {/* --- LIVE CAFES LIST --- */}
         {!loading && (
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {data?.cafes?.map((cafe: any, i: number) => {
+            {data?.cafes?.map((cafe: ReserveCafe, i: number) => {
               // Calculate Tables: Total - Active Reservations
               const tablesLeft = Math.max(0, cafe.totalTables - (cafe._count?.reservations || 0));
               const isFull = tablesLeft === 0;
-              const distance = userLoc && cafe.lat && cafe.lng ? calculateDistance(userLoc.lat, userLoc.lng, cafe.lat, cafe.lng) : null;
+              const distance =
+                userLoc && cafe.lat != null && cafe.lng != null
+                  ? calculateDistance(userLoc.lat, userLoc.lng, cafe.lat, cafe.lng)
+                  : null;
               
               return (
                 <motion.div
@@ -176,9 +189,9 @@ export default function ReservePage() {
         <div className="pt-8">
           <h2 className="text-lg font-bold text-zinc-900 mb-4 px-1">Your Bookings</h2>
           
-          {data?.reservations?.length > 0 ? (
+          {reservations.length > 0 ? (
             <div className="space-y-3">
-              {data.reservations.map((res: any) => (
+              {reservations.map((res: UserReservation) => (
                 <div key={res.id} className="p-4 bg-white border border-zinc-100 rounded-2xl flex items-center justify-between shadow-sm hover:bg-zinc-50 transition-colors">
                   <div className="flex items-center gap-3">
                     <div className="h-10 w-10 rounded-full bg-[#C72C48]/10 flex items-center justify-center text-[#C72C48]">

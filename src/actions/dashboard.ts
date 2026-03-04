@@ -4,6 +4,8 @@
 import { db } from "@/lib/db";
 import { getSession } from "@/lib/session";
 import { joinCafeWithSerial } from "@/actions/cafe";
+import { cafeIdSchema } from "@/lib/validation/cafe";
+import { searchQuerySchema } from "@/lib/validation/dashboard";
 
 type CafeSummary = {
   id: string;
@@ -17,6 +19,7 @@ type CafeSummary = {
 
 type LoyaltyCardRecord = {
   id: string;
+  cardSerial: string | null;
   stamps: number;
   maxStamps: number;
   tier: string | null;
@@ -38,6 +41,10 @@ type SearchCafeResult = {
   id: string;
   name: string;
   address: string;
+  image: string | null;
+  rating: number;
+  lat: number | null;
+  lng: number | null;
 };
 
 type CafeReserve = {
@@ -114,6 +121,7 @@ export async function getDashboardData(): Promise<DashboardData> {
 
     const myCards: LoyaltyCardRecord[] = myCardsRaw.map((card) => ({
       id: card.id,
+      cardSerial: card.cardSerial,
       stamps: card.stamps,
       maxStamps: card.maxStamps,
       tier: card.tier,
@@ -197,8 +205,10 @@ export async function getDashboardData(): Promise<DashboardData> {
 }
 
 export async function searchCafes(query: string): Promise<SearchCafeResult[]> {
-  const trimmed = query.trim();
-  if (!trimmed) return [];
+  const parsed = searchQuerySchema.safeParse(query);
+  if (!parsed.success) return [];
+
+  const trimmed = parsed.data;
   try {
     const cafes = await db.cafe.findMany({
       where: {
@@ -213,13 +223,22 @@ export async function searchCafes(query: string): Promise<SearchCafeResult[]> {
         id: true,
         name: true,
         address: true
+        ,
+        image: true,
+        rating: true,
+        lat: true,
+        lng: true
       }
     });
 
     return cafes.map((cafe) => ({
       id: cafe.id,
       name: cafe.name,
-      address: cafe.address
+      address: cafe.address,
+      image: cafe.image,
+      rating: cafe.rating,
+      lat: cafe.lat,
+      lng: cafe.lng
     }));
   } catch (error) {
     console.error("searchCafes error:", error);
@@ -228,7 +247,12 @@ export async function searchCafes(query: string): Promise<SearchCafeResult[]> {
 }
 
 export async function joinCafe(cafeId: string) {
-  return joinCafeWithSerial(cafeId);
+  const parsed = cafeIdSchema.safeParse(cafeId);
+  if (!parsed.success) {
+    return { success: false, error: "Invalid cafe id." } as const;
+  }
+
+  return joinCafeWithSerial(parsed.data);
 }
 
 export async function getReserveData(): Promise<ReserveData> {
@@ -237,6 +261,8 @@ export async function getReserveData(): Promise<ReserveData> {
     if (!session?.userId) {
       return { cafes: [], reservations: [] };
     }
+
+    const now = new Date();
 
     const cafes = await db.cafe.findMany({
       select: {
@@ -250,7 +276,10 @@ export async function getReserveData(): Promise<ReserveData> {
         _count: {
           select: {
             reservations: {
-              where: { status: "CONFIRMED" }
+              where: {
+                status: "CONFIRMED",
+                date: { gte: now },
+              },
             }
           }
         }

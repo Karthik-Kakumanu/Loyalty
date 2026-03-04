@@ -1,9 +1,19 @@
-// file: src/actions/auth.ts
 "use server";
 
+import bcrypt from "bcryptjs";
 import { redirect } from "next/navigation";
+import { z } from "zod";
 import { db } from "@/lib/db";
+import { getOtpApiKey } from "@/lib/env";
+import { normalizePhone, splitNormalizedPhone } from "@/lib/phone";
 import { createSession, deleteSession, getSession } from "@/lib/session";
+import {
+  checkUserExistsSchema,
+  completeSignupSchema,
+  sendOtpSchema,
+  updateInterestsSchema,
+  verifyOtpSchema,
+} from "@/lib/validation/auth";
 
 type CheckUserResult = {
   exists: boolean;
@@ -33,137 +43,220 @@ type SignupPayload = {
   city: string;
 };
 
-function normalizePhone(rawPhone: string, countryCode: string): string {
-  let clean = rawPhone.replace(/\D/g, "");
-  if (countryCode === "+91" && clean.length === 12 && clean.startsWith("91")) {
-    clean = clean.slice(2);
-  }
-  return `${countryCode}${clean}`;
+const OTP_EXPIRY_MS = 10 * 60 * 1000;
+const OTP_RESEND_COOLDOWN_MS = 30 * 1000;
+const OTP_HASH_ROUNDS = 10;
+
+function getValidationErrorMessage(error: z.ZodError): string {
+  return error.issues[0]?.message ?? "Invalid request.";
+}
+
+function getPhoneFromFormData(formData: FormData) {
+  return {
+    countryCode: String(formData.get("countryCode") ?? ""),
+    phone: String(formData.get("phone") ?? ""),
+  };
+}
+
+function getOtpCooldownSeconds(expiresAt: Date): number {
+  const estimatedLastSent = expiresAt.getTime() - OTP_EXPIRY_MS;
+  const cooldownEndsAt = estimatedLastSent + OTP_RESEND_COOLDOWN_MS;
+  const remainingMs = cooldownEndsAt - Date.now();
+  if (remainingMs <= 0) return 0;
+  return Math.ceil(remainingMs / 1000);
+}
+
+function generateOtpCode(): string {
+  return String(Math.floor(100000 + Math.random() * 900000));
 }
 
 export async function checkUserExists(
   phone: string,
-  countryCode: string
+  countryCode: string,
 ): Promise<CheckUserResult> {
-  const normalized = normalizePhone(phone, countryCode);
-  const user = await db.user.findUnique({ where: { phone: normalized } });
-  return { exists: Boolean(user) };
+  const parsed = checkUserExistsSchema.safeParse({ phone, countryCode });
+  if (!parsed.success) return { exists: false };
+
+  const normalized = normalizePhone(parsed.data.phone, parsed.data.countryCode);
+
+  try {
+    const user = await db.user.findUnique({ where: { phone: normalized } });
+    return { exists: Boolean(user) };
+  } catch {
+    return { exists: false };
+  }
 }
 
 export async function sendOtp(formData: FormData): Promise<OtpResult> {
-  const phone = String(formData.get("phone") ?? "");
-  const countryCode = String(formData.get("countryCode") ?? "");
-  const normalized = normalizePhone(phone, countryCode);
+  const parsed = sendOtpSchema.safeParse(getPhoneFromFormData(formData));
 
-  if (!phone || !countryCode) {
-    return { success: false, error: "Invalid phone" };
+  if (!parsed.success) {
+    return { success: false, error: getValidationErrorMessage(parsed.error) };
   }
 
-  const code = Math.floor(100000 + Math.random() * 900000).toString();
-  const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
+  const normalized = normalizePhone(parsed.data.phone, parsed.data.countryCode);
 
-  // Debug logging only
-  // eslint-disable-next-line no-console
-  console.log("[OTP] Generated", normalized, code);
+  try {
+    const existingOtp = await db.otp.findUnique({
+      where: { phone: normalized },
+      select: { expiresAt: true },
+    });
 
-  const apiKey = process.env.OTP_API_KEY;
+    if (existingOtp) {
+      const cooldownSeconds = getOtpCooldownSeconds(existingOtp.expiresAt);
+      if (cooldownSeconds > 0) {
+        return {
+          success: false,
+          error: `Please wait ${cooldownSeconds}s before requesting another OTP.`,
+        };
+      }
+    }
 
-  if (apiKey && countryCode === "+91") {
-    try {
-      const response = await fetch("https://www.fast2sms.com/dev/bulkV2", {
+    const code = generateOtpCode();
+    const hashedCode = await bcrypt.hash(code, OTP_HASH_ROUNDS);
+    const expiresAt = new Date(Date.now() + OTP_EXPIRY_MS);
+
+    const apiKey = getOtpApiKey();
+
+    if (apiKey && parsed.data.countryCode === "+91") {
+      await fetch("https://www.fast2sms.com/dev/bulkV2", {
         method: "POST",
         headers: {
           authorization: apiKey,
-          "Content-Type": "application/json"
+          "Content-Type": "application/json",
         },
         body: JSON.stringify({
           route: "q",
           message: `Your Revistra OTP is ${code}`,
           flash: 0,
-          numbers: normalized.replace(/^\+91/, "")
-        })
+          numbers: normalized.replace(/^\+91/, ""),
+        }),
       });
-
-      // eslint-disable-next-line no-console
-      console.log("[Fast2SMS]", response.status);
-    } catch (error) {
-      // eslint-disable-next-line no-console
-      console.error("[Fast2SMS] failed", error);
     }
+
+    await db.otp.upsert({
+      where: { phone: normalized },
+      update: { code: hashedCode, expiresAt },
+      create: { phone: normalized, code: hashedCode, expiresAt },
+    });
+
+    return { success: true };
+  } catch {
+    return { success: false, error: "Unable to send OTP right now. Please try again." };
   }
-
-  await db.otp.upsert({
-    where: { phone: normalized },
-    update: { code, expiresAt },
-    create: { phone: normalized, code, expiresAt }
-  });
-
-  return { success: true };
 }
 
 export async function verifyOtpAndLogin(
   phone: string,
-  code: string
+  code: string,
 ): Promise<VerifyOtpResult> {
-  const record = await db.otp.findUnique({ where: { phone } });
-  if (!record || record.code !== code) {
-    return { success: false, error: "Invalid code" };
-  }
-  if (new Date() > record.expiresAt) {
-    return { success: false, error: "Code expired" };
+  const parsed = verifyOtpSchema.safeParse({ phone, code });
+
+  if (!parsed.success) {
+    return { success: false, error: getValidationErrorMessage(parsed.error) };
   }
 
-  const user = await db.user.findUnique({ where: { phone } });
+  try {
+    const otpRecord = await db.otp.findUnique({ where: { phone: parsed.data.phone } });
+    if (!otpRecord) {
+      return { success: false, error: "Invalid code." };
+    }
 
-  await db.otp.delete({ where: { phone } });
+    if (Date.now() > otpRecord.expiresAt.getTime()) {
+      await db.otp.delete({ where: { phone: parsed.data.phone } }).catch(() => undefined);
+      return { success: false, error: "Code expired. Please request a new OTP." };
+    }
 
-  return { success: true, isNewUser: !user };
+    const matches =
+      otpRecord.code === parsed.data.code || (await bcrypt.compare(parsed.data.code, otpRecord.code));
+
+    if (!matches) {
+      return { success: false, error: "Invalid code." };
+    }
+
+    const user = await db.user.findUnique({ where: { phone: parsed.data.phone } });
+    await db.otp.delete({ where: { phone: parsed.data.phone } });
+
+    return { success: true, isNewUser: !user };
+  } catch {
+    return { success: false, error: "Unable to verify OTP." };
+  }
 }
 
 export async function completeSignup(data: SignupPayload): Promise<MutationResult> {
+  const parsed = completeSignupSchema.safeParse({
+    ...data,
+    dob: data.dob,
+  });
+
+  if (!parsed.success) {
+    return { success: false, error: getValidationErrorMessage(parsed.error) };
+  }
+
   try {
+    const existing = await db.user.findUnique({ where: { phone: parsed.data.phone } });
+    if (existing) {
+      return { success: false, error: "Account already exists. Please login." };
+    }
+
     const user = await db.user.create({
       data: {
-        name: data.name,
-        phone: data.phone,
-        dob: new Date(data.dob),
-        state: data.state,
-        city: data.city
-      }
+        name: parsed.data.name,
+        phone: parsed.data.phone,
+        dob: parsed.data.dob,
+        state: parsed.data.state,
+        city: parsed.data.city,
+      },
     });
+
     await createSession(user.id, user.phone);
     return { success: true };
-  } catch (error) {
-    // eslint-disable-next-line no-console
-    console.error("Signup error", error);
-    return { success: false, error: "Unable to create account" };
+  } catch {
+    return { success: false, error: "Unable to create account." };
   }
 }
 
 export async function completeLogin(phone: string): Promise<MutationResult> {
-  const user = await db.user.findUnique({ where: { phone } });
-  if (!user) {
-    return { success: false, error: "User not found" };
+  const normalized = splitNormalizedPhone(phone);
+  if (!normalized) {
+    return { success: false, error: "Invalid phone number." };
   }
-  await createSession(user.id, user.phone);
-  return { success: true };
+
+  const canonicalPhone = normalizePhone(normalized.local, normalized.countryCode);
+
+  try {
+    const user = await db.user.findUnique({ where: { phone: canonicalPhone } });
+    if (!user) {
+      return { success: false, error: "User not found." };
+    }
+
+    await createSession(user.id, user.phone);
+    return { success: true };
+  } catch {
+    return { success: false, error: "Unable to login." };
+  }
 }
 
 export async function updateInterests(interests: string[]): Promise<MutationResult> {
+  const parsed = updateInterestsSchema.safeParse(interests);
+  if (!parsed.success) {
+    return { success: false, error: getValidationErrorMessage(parsed.error) };
+  }
+
   const session = await getSession();
   if (!session?.userId) {
-    return { success: false, error: "Unauthorized" };
+    return { success: false, error: "Unauthorized." };
   }
+
   try {
     await db.user.update({
       where: { id: session.userId },
-      data: { interests }
+      data: { interests: parsed.data },
     });
+
     return { success: true };
-  } catch (error) {
-    // eslint-disable-next-line no-console
-    console.error("Failed to save interests", error);
-    return { success: false, error: "Unable to save preferences" };
+  } catch {
+    return { success: false, error: "Unable to save preferences." };
   }
 }
 

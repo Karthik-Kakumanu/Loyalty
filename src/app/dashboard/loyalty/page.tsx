@@ -2,19 +2,11 @@
 
 import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Gift, Clock, CheckCircle2, Ticket, Copy, ExternalLink } from "lucide-react";
+import { Gift, Clock, CheckCircle2, Ticket } from "lucide-react";
 import { getLoyaltyData } from "@/actions/dashboard";
 
 // --- Types ---
-interface Reward {
-  id: string;
-  title: string;
-  cafeName: string;
-  expiry: string; // e.g., "Expires in 6 days"
-  status: "READY" | "USED" | "EXPIRED";
-  pointsUsed: number;
-  code?: string; // Optional coupon code
-}
+type Reward = Awaited<ReturnType<typeof getLoyaltyData>>[number];
 
 // --- Component: Ticket Skeleton ---
 const RewardSkeleton = () => (
@@ -46,9 +38,7 @@ export default function LoyaltyPage() {
     async function load() {
       try {
         const data = await getLoyaltyData();
-        
-        // --- FIX IS HERE: Cast data as 'any' to bypass strict Type check ---
-        setRewards((data as any) || []);
+        setRewards(data || []);
         
       } catch (error) {
         console.error("Failed to load rewards", error);
@@ -60,7 +50,7 @@ export default function LoyaltyPage() {
   }, []);
 
   return (
-    <div className="w-full max-w-7xl mx-auto space-y-6 pb-32 md:pb-12">
+    <div className="w-full max-w-7xl mx-auto space-y-6 pb-4">
       
       {/* --- HEADER --- */}
       <motion.div 

@@ -1,9 +1,9 @@
 import "server-only";
 import { SignJWT, jwtVerify } from "jose";
 import { cookies } from "next/headers";
+import { getSessionSecret } from "@/lib/env";
 
-const secretKey = process.env.SESSION_SECRET || "default-secret-key";
-const encodedKey = new TextEncoder().encode(secretKey);
+const encodedKey = new TextEncoder().encode(getSessionSecret());
 
 type SessionPayload = {
   userId: string;

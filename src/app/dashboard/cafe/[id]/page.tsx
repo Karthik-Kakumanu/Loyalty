@@ -4,6 +4,7 @@ import { useEffect, useState, use } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { MapPin, Star, ChevronLeft, ChevronRight, CreditCard, Lock, Loader2, Coffee, Navigation } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 import { getCafeDetails, joinCafeWithSerial } from "@/actions/cafe";
 
 // --- TYPES ---
@@ -44,12 +45,12 @@ type CafeDetailsWithPlan = NonNullable<CafeDetailsResponse> & {
 
 // --- MOCK MENU DATA (Until your Admin Panel is connected) ---
 const MOCK_DB_MENU: MenuItem[] = [
-  { id: 1, name: "Signature Ruby Latte", price: "$6.50", description: "Our house special rose-infused latte with a hint of Madagascar vanilla.", tag: "Popular", type: "VEG", isSpecial: true },
-  { id: 2, name: "Artisan Butter Croissant", price: "$4.00", description: "Freshly baked daily, perfectly flaky and golden brown.", type: "VEG", isSpecial: false },
-  { id: 3, name: "Smoked Turkey Sandwich", price: "$9.50", description: "Oven-smoked turkey breast with cranberry glaze on sourdough.", type: "NON-VEG", isSpecial: true },
-  { id: 4, name: "Truffle Chocolate Cake", price: "$8.50", description: "Rich dark chocolate layered with velvet truffle cream.", tag: "Chef's Pick", type: "VEG", isSpecial: false },
-  { id: 5, name: "Spicy Chicken Wrap", price: "$8.00", description: "Grilled chicken with spicy mayo and fresh greens.", type: "NON-VEG", isSpecial: false },
-  { id: 6, name: "Matcha Green Tea", price: "$5.50", description: "Premium ceremonial grade matcha whisked to perfection.", type: "VEG", isSpecial: true },
+  { id: 1, name: "Signature Ruby Latte", price: "₹320", description: "Our house special rose-infused latte with a hint of Madagascar vanilla.", tag: "Popular", type: "VEG", isSpecial: true },
+  { id: 2, name: "Artisan Butter Croissant", price: "₹180", description: "Freshly baked daily, perfectly flaky and golden brown.", type: "VEG", isSpecial: false },
+  { id: 3, name: "Smoked Turkey Sandwich", price: "₹440", description: "Oven-smoked turkey breast with cranberry glaze on sourdough.", type: "NON-VEG", isSpecial: true },
+  { id: 4, name: "Truffle Chocolate Cake", price: "₹380", description: "Rich dark chocolate layered with velvet truffle cream.", tag: "Chef's Pick", type: "VEG", isSpecial: false },
+  { id: 5, name: "Spicy Chicken Wrap", price: "₹360", description: "Grilled chicken with spicy mayo and fresh greens.", type: "NON-VEG", isSpecial: false },
+  { id: 6, name: "Matcha Green Tea", price: "₹260", description: "Premium ceremonial grade matcha whisked to perfection.", type: "VEG", isSpecial: true },
 ];
 
 // Veg/Non-Veg Indicator Icon Component
@@ -101,12 +102,14 @@ export default function CafeDetailsPage({ params }: { params: Promise<{ id: stri
     try {
         const res = await joinCafeWithSerial(id);
         if (res.success) {
-            window.location.reload(); 
+            router.refresh();
+            toast.success("Membership unlocked.");
         } else {
-            alert("Error: " + res.error);
+            toast.error(res.error || "Unable to unlock membership.");
             setJoining(false);
         }
     } catch {
+        toast.error("Unable to unlock membership right now.");
         setJoining(false);
     }
   };
@@ -122,14 +125,13 @@ export default function CafeDetailsPage({ params }: { params: Promise<{ id: stri
     
     // Correct Official Google Maps Universal Link
     const mapsUrl = `https://www.google.com/maps/dir/?api=1&destination=${destination}`;
-    window.open(mapsUrl, "_blank");
+    window.open(mapsUrl, "_blank", "noopener,noreferrer");
   };
 
   if (loading) return <div className="h-dvh flex items-center justify-center bg-[#FDFCFD]"><Loader2 className="animate-spin text-[#C72C48] w-8 h-8"/></div>;
   if (!cafe) return <div className="h-dvh flex items-center justify-center text-zinc-500 bg-[#FDFCFD]">Cafe not found</div>;
 
   const memberCard = cafe.cards?.[0] ?? null;
-  const isMember = Boolean(memberCard);
 
   // --- MENU FILTERING LOGIC BASED ON CAFE PLAN ---
   let displayMenu: MenuItem[] = cafe.menu || [];
@@ -145,7 +147,7 @@ export default function CafeDetailsPage({ params }: { params: Promise<{ id: stri
   }
 
   return (
-    <div className="min-h-dvh bg-[#FDFCFD] pb-24 relative selection:bg-[#C72C48] selection:text-white">
+    <div className="min-h-full bg-[#FDFCFD] pb-6 relative selection:bg-[#C72C48] selection:text-white">
       
       {/* --- HERO IMAGE --- */}
       <div className="relative h-72 w-full bg-zinc-900">

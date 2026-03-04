@@ -5,6 +5,7 @@ import type { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import { getSession } from "@/lib/session";
 import { revalidatePath } from "next/cache";
+import { cafeIdSchema, reservationPayloadSchema } from "@/lib/validation/cafe";
 
 type JoinCafeResult =
   | { success: true; cardId: string; cardSerial: string | null }
@@ -40,6 +41,11 @@ async function allocateNextCardSerial(
 }
 
 export async function joinCafeWithSerial(cafeId: string): Promise<JoinCafeResult> {
+  const parsedCafeId = cafeIdSchema.safeParse(cafeId);
+  if (!parsedCafeId.success) {
+    return { success: false, error: "Invalid cafe id." };
+  }
+
   try {
     const session = await getSession();
     if (!session?.userId) {
@@ -48,7 +54,7 @@ export async function joinCafeWithSerial(cafeId: string): Promise<JoinCafeResult
 
     const result = await db.$transaction(async (tx) => {
       const cafeExists = await tx.cafe.findUnique({
-        where: { id: cafeId },
+        where: { id: parsedCafeId.data },
         select: { id: true }
       });
 
@@ -60,7 +66,7 @@ export async function joinCafeWithSerial(cafeId: string): Promise<JoinCafeResult
         where: {
           userId_cafeId: {
             userId: session.userId,
-            cafeId
+            cafeId: parsedCafeId.data
           }
         }
       });
@@ -69,7 +75,7 @@ export async function joinCafeWithSerial(cafeId: string): Promise<JoinCafeResult
         return existing;
       }
 
-      const cardSerial = await allocateNextCardSerial(tx, cafeId);
+      const cardSerial = await allocateNextCardSerial(tx, parsedCafeId.data);
 
       if (existing) {
         return tx.loyaltyCard.update({
@@ -81,7 +87,7 @@ export async function joinCafeWithSerial(cafeId: string): Promise<JoinCafeResult
       return tx.loyaltyCard.create({
         data: {
           userId: session.userId,
-          cafeId,
+          cafeId: parsedCafeId.data,
           cardSerial,
           stamps: 0,
           maxStamps: 10,
@@ -93,7 +99,7 @@ export async function joinCafeWithSerial(cafeId: string): Promise<JoinCafeResult
 
     revalidatePath("/dashboard");
     revalidatePath("/dashboard/cards");
-    revalidatePath(`/dashboard/cafe/${cafeId}`);
+    revalidatePath(`/dashboard/cafe/${parsedCafeId.data}`);
 
     return {
       success: true,
@@ -101,20 +107,22 @@ export async function joinCafeWithSerial(cafeId: string): Promise<JoinCafeResult
       cardSerial: result.cardSerial ?? null
     };
   } catch (error) {
-    // eslint-disable-next-line no-console
     console.error("joinCafeWithSerial error:", error);
     return { success: false, error: "Unable to join cafe" };
   }
 }
 
 export async function getCafeDetails(cafeId: string): Promise<CafeDetailsResult> {
+  const parsedCafeId = cafeIdSchema.safeParse(cafeId);
+  if (!parsedCafeId.success) return null;
+
   const session = await getSession();
   if (!session?.userId) {
     return null;
   }
 
   const cafe = await db.cafe.findUnique({
-    where: { id: cafeId },
+    where: { id: parsedCafeId.data },
     include: {
       cards: {
         where: { userId: session.userId },
@@ -131,28 +139,70 @@ export async function reserveTable(
   date: Date,
   guests: number
 ): Promise<ReserveResult> {
+  const parsed = reservationPayloadSchema.safeParse({ cafeId, date, guests });
+  if (!parsed.success) {
+    return { success: false, error: parsed.error.issues[0]?.message ?? "Invalid reservation request." };
+  }
+
   try {
     const session = await getSession();
     if (!session?.userId) {
       return { success: false, error: "Unauthorized" };
     }
 
-    await db.reservation.create({
-      data: {
-        userId: session.userId,
-        cafeId,
-        date,
-        guests,
-        status: "CONFIRMED"
+    const targetDate = parsed.data.date;
+    const windowStart = new Date(targetDate);
+    windowStart.setMinutes(0, 0, 0);
+    const windowEnd = new Date(windowStart);
+    windowEnd.setHours(windowEnd.getHours() + 1);
+
+    const canReserve = await db.$transaction(async (tx) => {
+      const cafe = await tx.cafe.findUnique({
+        where: { id: parsed.data.cafeId },
+        select: { totalTables: true },
+      });
+
+      if (!cafe) {
+        return { ok: false, error: "Cafe not found." } as const;
       }
+
+      const existingReservations = await tx.reservation.count({
+        where: {
+          cafeId: parsed.data.cafeId,
+          status: "CONFIRMED",
+          date: {
+            gte: windowStart,
+            lt: windowEnd,
+          },
+        },
+      });
+
+      if (existingReservations >= cafe.totalTables) {
+        return { ok: false, error: "No tables available for that time slot." } as const;
+      }
+
+      await tx.reservation.create({
+        data: {
+          userId: session.userId,
+          cafeId: parsed.data.cafeId,
+          date: targetDate,
+          guests: parsed.data.guests,
+          status: "CONFIRMED",
+        },
+      });
+
+      return { ok: true } as const;
     });
 
-    revalidatePath(`/dashboard/cafe/${cafeId}`);
+    if (!canReserve.ok) {
+      return { success: false, error: canReserve.error };
+    }
+
+    revalidatePath(`/dashboard/cafe/${parsed.data.cafeId}`);
     revalidatePath("/dashboard/reserve");
 
     return { success: true };
   } catch (error) {
-    // eslint-disable-next-line no-console
     console.error("reserveTable error:", error);
     return { success: false, error: "Unable to create reservation" };
   }

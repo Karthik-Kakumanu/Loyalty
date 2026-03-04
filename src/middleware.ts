@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { jwtVerify } from "jose";
+import { getSessionSecret } from "@/lib/env";
 
-const secretKey = process.env.SESSION_SECRET || "default-secret-key";
-const encodedKey = new TextEncoder().encode(secretKey);
+const encodedKey = new TextEncoder().encode(getSessionSecret());
 
 // The function name MUST be 'middleware' for Next.js to run it
 export async function middleware(req: NextRequest) {
@@ -17,7 +17,7 @@ export async function middleware(req: NextRequest) {
     try {
       await jwtVerify(session, encodedKey);
       isValid = true;
-    } catch (err) {
+    } catch {
       isValid = false;
     }
   }

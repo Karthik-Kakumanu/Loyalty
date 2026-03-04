@@ -1,11 +1,16 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import dynamic from "next/dynamic";
+import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { X, AlertCircle, Loader2 } from "lucide-react";
-import { Scanner as QrScanner } from "@yudiel/react-qr-scanner";
+import { AlertCircle, Loader2, X } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { joinCafeWithSerial } from "@/actions/cafe"; 
+import { joinCafeWithSerial } from "@/actions/cafe";
+
+const QrScanner = dynamic(
+  () => import("@yudiel/react-qr-scanner").then((module) => module.Scanner),
+  { ssr: false },
+);
 
 interface ScannerProps {
   isOpen: boolean;
@@ -15,117 +20,113 @@ interface ScannerProps {
 
 export function Scanner({ isOpen, onClose, onScan }: ScannerProps) {
   const [error, setError] = useState<string | null>(null);
-  const [mounted, setMounted] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const router = useRouter();
 
-  useEffect(() => { setMounted(true); }, []);
-
-  // --- THE FIX: RESET STATE ON OPEN ---
-  useEffect(() => {
-    if (isOpen) {
-      setIsProcessing(false);
-      setError(null);
-    }
-  }, [isOpen]);
+  const closeScanner = () => {
+    setError(null);
+    setIsProcessing(false);
+    onClose();
+  };
 
   const handleScan = async (rawValue: string) => {
-    if (isProcessing || !rawValue) return; 
-    
-    // Prevent scanning if just https:// (wait for specific format)
-    // Optional: Add specific checks if needed
-    
+    if (isProcessing) return;
+
+    const normalized = rawValue.trim();
+    if (!normalized) return;
+
+    const cafeId = normalized
+      .replace(/^REVISTRA:\/\/cafe\//i, "")
+      .replace(/^loyaltyapp:\/\/cafe\//i, "");
+
     setIsProcessing(true);
+    setError(null);
 
     try {
-      // Parse ID: Clean up the URL scheme
-      const cafeId = rawValue
-        .replace("REVISTRA://cafe/", "")
-        .replace("loyaltyapp://cafe/", ""); 
-
       const result = await joinCafeWithSerial(cafeId);
 
       if (result.success) {
-        onScan(cafeId); 
-        onClose(); 
+        onScan(cafeId);
+        closeScanner();
         router.refresh();
-        // Redirect to the newly created stamp card
-        router.push(`/dashboard/cards/${result.cardId}`); 
-      } else {
-        setError(result.error || "Invalid QR Code");
-        // Reset after 3 seconds so they can try again
-        setTimeout(() => { 
-            setError(null); 
-            setIsProcessing(false); 
-        }, 3000);
+        router.push(`/dashboard/cards/${result.cardId}`);
+        return;
       }
-    } catch (e) {
-      console.error(e);
-      setError("Failed to process code");
-      setTimeout(() => { 
-          setError(null); 
-          setIsProcessing(false); 
-      }, 3000);
+
+      setError(result.error || "Invalid QR code.");
+      setIsProcessing(false);
+    } catch {
+      setError("Failed to process code.");
+      setIsProcessing(false);
     }
   };
 
-  if (!mounted) return null;
-
   return (
     <AnimatePresence>
-      {isOpen && (
+      {isOpen ? (
         <motion.div
-          initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-          className="fixed inset-0 z-[100] bg-black flex flex-col"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          className="fixed inset-0 z-[100] flex flex-col bg-black"
         >
-          {/* Header */}
-          <div className="absolute top-0 left-0 right-0 p-4 pt-safe flex justify-between items-center z-20 bg-gradient-to-b from-black/80 to-transparent">
-            <h2 className="text-lg font-bold text-white pl-2">Scan Cafe QR</h2>
-            <button onClick={onClose} className="p-2 bg-white/20 backdrop-blur-md rounded-full text-white">
-              <X size={24} />
+          <div className="absolute left-0 right-0 top-0 z-20 flex items-center justify-between bg-gradient-to-b from-black/80 to-transparent p-4 pt-safe">
+            <h2 className="pl-2 text-lg font-bold text-white">Scan Cafe QR</h2>
+            <button
+              type="button"
+              onClick={closeScanner}
+              className="inline-flex h-11 w-11 items-center justify-center rounded-full bg-white/20 text-white backdrop-blur"
+              aria-label="Close scanner"
+            >
+              <X size={22} />
             </button>
           </div>
 
-          {/* Camera */}
-          <div className="flex-1 relative flex items-center justify-center bg-black overflow-hidden">
-            <div className="absolute inset-0 w-full h-full">
-               <QrScanner
-                  onScan={(result) => {
-                    if (result && result.length > 0) handleScan(result[0].rawValue);
-                  }}
-                  onError={(error) => console.error(error)}
-                  components={{ finder: false }}
-                  styles={{ container: { width: "100%", height: "100%" } }}
-               />
+          <div className="relative flex flex-1 items-center justify-center overflow-hidden bg-black">
+            <div className="absolute inset-0">
+              <QrScanner
+                onScan={(result) => {
+                  const raw = result?.[0]?.rawValue ?? "";
+                  void handleScan(raw);
+                }}
+                onError={() => setError("Camera access unavailable.")}
+                components={{ finder: false }}
+                styles={{ container: { width: "100%", height: "100%" } }}
+              />
             </div>
 
-            {/* Error UI */}
             <AnimatePresence>
-                {error && (
-                <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 10 }} className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-30 bg-red-500/90 backdrop-blur-md text-white px-6 py-3 rounded-2xl flex items-center gap-2 shadow-xl">
-                    <AlertCircle size={20} /> <span className="text-sm font-bold">{error}</span>
+              {error ? (
+                <motion.div
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: 10 }}
+                  className="absolute left-1/2 top-1/2 z-30 flex -translate-x-1/2 -translate-y-1/2 items-center gap-2 rounded-2xl bg-red-500/95 px-6 py-3 text-white shadow-xl"
+                >
+                  <AlertCircle size={20} />
+                  <span className="text-sm font-bold">{error}</span>
                 </motion.div>
-                )}
+              ) : null}
             </AnimatePresence>
 
-            {/* Loading UI */}
-            {isProcessing && !error && (
-               <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-30 bg-black/70 backdrop-blur-md text-white px-8 py-4 rounded-2xl flex flex-col items-center gap-3">
-                 <Loader2 className="w-8 h-8 animate-spin text-[#C72C48]" />
-                 <span className="text-xs font-bold uppercase tracking-widest text-white/90">Creating Card...</span>
-               </div>
-            )}
-            
-            {/* Custom Frame */}
-            <div className="relative w-64 h-64 md:w-80 md:h-80 rounded-[2rem] z-10 pointer-events-none border-2 border-white/20">
-              <div className="absolute top-0 left-0 w-10 h-10 border-l-[4px] border-t-[4px] border-[#C72C48] rounded-tl-2xl" />
-              <div className="absolute top-0 right-0 w-10 h-10 border-r-[4px] border-t-[4px] border-[#C72C48] rounded-tr-2xl" />
-              <div className="absolute bottom-0 left-0 w-10 h-10 border-l-[4px] border-b-[4px] border-[#C72C48] rounded-bl-2xl" />
-              <div className="absolute bottom-0 right-0 w-10 h-10 border-r-[4px] border-b-[4px] border-[#C72C48] rounded-br-2xl" />
+            {isProcessing ? (
+              <div className="absolute left-1/2 top-1/2 z-30 flex -translate-x-1/2 -translate-y-1/2 flex-col items-center gap-3 rounded-2xl bg-black/70 px-8 py-4 text-white backdrop-blur">
+                <Loader2 className="h-8 w-8 animate-spin text-[var(--brand)]" />
+                <span className="text-xs font-bold uppercase tracking-widest text-white/90">
+                  Creating Card...
+                </span>
+              </div>
+            ) : null}
+
+            <div className="pointer-events-none relative z-10 h-64 w-64 rounded-[2rem] border-2 border-white/20 md:h-80 md:w-80">
+              <div className="absolute left-0 top-0 h-10 w-10 rounded-tl-2xl border-l-[4px] border-t-[4px] border-[var(--brand)]" />
+              <div className="absolute right-0 top-0 h-10 w-10 rounded-tr-2xl border-r-[4px] border-t-[4px] border-[var(--brand)]" />
+              <div className="absolute bottom-0 left-0 h-10 w-10 rounded-bl-2xl border-b-[4px] border-l-[4px] border-[var(--brand)]" />
+              <div className="absolute bottom-0 right-0 h-10 w-10 rounded-br-2xl border-b-[4px] border-r-[4px] border-[var(--brand)]" />
             </div>
           </div>
         </motion.div>
-      )}
+      ) : null}
     </AnimatePresence>
   );
 }

@@ -9,8 +9,8 @@
   "description": "A Loyalty Card Based Cafe App",
   "icons": [
     {
-      "src": "/icon/icon-192x193.png",
-      "sizes": "192x193",
+      "src": "/icon/icon-192x192.png",
+      "sizes": "192x192",
       "type": "image/png",
       "purpose": "any maskable"
     },

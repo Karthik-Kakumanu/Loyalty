@@ -32,6 +32,7 @@ Required:
 
 ## Scripts
 
+- `npm run icons:sync` - regenerate favicon + PWA icons from `public/logo.jpg`
 - `npm run dev` - local development
 - `npm run build` - production build
 - `npm run start` - run built app
@@ -53,3 +54,4 @@ Required:
 - Rotate any leaked credentials immediately.
 - Keep Prisma migrations and schema changes versioned.
 - Run `npm run lint` and `npx tsc --noEmit` before deployment.
+- App icons auto-sync from `public/logo.jpg` when running `dev` or `build`.

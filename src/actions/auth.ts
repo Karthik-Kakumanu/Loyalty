@@ -46,6 +46,7 @@ type SignupPayload = {
 const OTP_EXPIRY_MS = 10 * 60 * 1000;
 const OTP_RESEND_COOLDOWN_MS = 30 * 1000;
 const OTP_HASH_ROUNDS = 10;
+const FAST2SMS_ENDPOINT = "https://www.fast2sms.com/dev/bulkV2";
 
 function getValidationErrorMessage(error: z.ZodError): string {
   return error.issues[0]?.message ?? "Invalid request.";
@@ -68,6 +69,99 @@ function getOtpCooldownSeconds(expiresAt: Date): number {
 
 function generateOtpCode(): string {
   return String(Math.floor(100000 + Math.random() * 900000));
+}
+
+type Fast2SmsResult = {
+  return?: boolean;
+  message?: string[];
+  request_id?: string;
+  [key: string]: unknown;
+};
+
+async function sendFast2SmsRequest(
+  apiKey: string,
+  body: Record<string, string | number>,
+): Promise<{ success: boolean; error?: string }> {
+  const response = await fetch(FAST2SMS_ENDPOINT, {
+    method: "POST",
+    headers: {
+      authorization: apiKey,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(body),
+  });
+
+  let payload: Fast2SmsResult | null = null;
+  try {
+    payload = (await response.json()) as Fast2SmsResult;
+  } catch {
+    payload = null;
+  }
+
+  if (!response.ok) {
+    return {
+      success: false,
+      error:
+        payload?.message?.join(", ") ||
+        `OTP provider returned HTTP ${response.status}.`,
+    };
+  }
+
+  if (payload?.return !== true) {
+    return {
+      success: false,
+      error: payload?.message?.join(", ") || "OTP provider rejected the request.",
+    };
+  }
+
+  return { success: true };
+}
+
+async function deliverOtp(
+  apiKey: string | null,
+  countryCode: string,
+  normalizedPhone: string,
+  code: string,
+): Promise<{ success: boolean; error?: string }> {
+  if (!apiKey) {
+    if (process.env.NODE_ENV !== "production") {
+      console.info(`[OTP DEV] ${normalizedPhone} => ${code}`);
+      return { success: true };
+    }
+    return { success: false, error: "OTP service is not configured." };
+  }
+
+  if (countryCode !== "+91") {
+    return { success: false, error: "OTP delivery is currently available only for India numbers." };
+  }
+
+  const phone10 = normalizedPhone.replace(/^\+91/, "");
+
+  // Preferred flow: dedicated OTP route.
+  const otpRoute = await sendFast2SmsRequest(apiKey, {
+    variables_values: code,
+    route: "otp",
+    numbers: phone10,
+    flash: 0,
+  });
+
+  if (otpRoute.success) return { success: true };
+
+  // Fallback: quick route in case provider account lacks otp-route entitlement.
+  const quickRoute = await sendFast2SmsRequest(apiKey, {
+    route: "q",
+    language: "english",
+    message: `Your Revistra OTP is ${code}`,
+    numbers: phone10,
+    flash: 0,
+  });
+
+  if (quickRoute.success) return { success: true };
+
+  return {
+    success: false,
+    error: quickRoute.error || otpRoute.error || "Unable to deliver OTP.",
+  };
 }
 
 export async function checkUserExists(
@@ -116,22 +210,9 @@ export async function sendOtp(formData: FormData): Promise<OtpResult> {
     const hashedCode = await bcrypt.hash(code, OTP_HASH_ROUNDS);
     const expiresAt = new Date(Date.now() + OTP_EXPIRY_MS);
 
-    const apiKey = getOtpApiKey();
-
-    if (apiKey && parsed.data.countryCode === "+91") {
-      await fetch("https://www.fast2sms.com/dev/bulkV2", {
-        method: "POST",
-        headers: {
-          authorization: apiKey,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          route: "q",
-          message: `Your Revistra OTP is ${code}`,
-          flash: 0,
-          numbers: normalized.replace(/^\+91/, ""),
-        }),
-      });
+    const delivery = await deliverOtp(getOtpApiKey(), parsed.data.countryCode, normalized, code);
+    if (!delivery.success) {
+      return { success: false, error: delivery.error || "Unable to deliver OTP." };
     }
 
     await db.otp.upsert({

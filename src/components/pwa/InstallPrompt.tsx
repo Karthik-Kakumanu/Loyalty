@@ -10,6 +10,9 @@ interface BeforeInstallPromptEvent extends Event {
   userChoice: Promise<{ outcome: "accepted" | "dismissed"; platform: string }>;
 }
 
+const INSTALL_DISMISSED_KEY = "revistra.installPrompt.dismissed";
+const INSTALL_COMPLETED_KEY = "revistra.installPrompt.installed";
+
 function detectIOS(): boolean {
   if (typeof navigator === "undefined") return false;
   return /iPad|iPhone|iPod/.test(navigator.userAgent);
@@ -20,14 +23,42 @@ function detectStandaloneMode(): boolean {
   return window.matchMedia("(display-mode: standalone)").matches;
 }
 
+function readInstallPromptFlag(key: string): boolean {
+  if (typeof window === "undefined") return false;
+  try {
+    return window.localStorage.getItem(key) === "1";
+  } catch {
+    return false;
+  }
+}
+
+function writeInstallPromptFlag(key: string): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(key, "1");
+  } catch {
+    // no-op when storage is blocked
+  }
+}
+
 export function InstallPrompt() {
   const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
   const [showPrompt, setShowPrompt] = useState(false);
+  const [isSuppressed, setIsSuppressed] = useState(() => {
+    if (typeof window === "undefined") return true;
+    if (detectStandaloneMode()) {
+      writeInstallPromptFlag(INSTALL_COMPLETED_KEY);
+      return true;
+    }
+    const dismissed = readInstallPromptFlag(INSTALL_DISMISSED_KEY);
+    const installed = readInstallPromptFlag(INSTALL_COMPLETED_KEY);
+    return dismissed || installed;
+  });
   const isIOS = useMemo(() => detectIOS(), []);
   const isStandalone = useMemo(() => detectStandaloneMode(), []);
 
   useEffect(() => {
-    if (isStandalone) return;
+    if (isStandalone || isSuppressed) return;
 
     let iosPromptTimeout: ReturnType<typeof setTimeout> | null = null;
     let installPromptTimeout: ReturnType<typeof setTimeout> | null = null;
@@ -39,7 +70,15 @@ export function InstallPrompt() {
       installPromptTimeout = setTimeout(() => setShowPrompt(true), 2000);
     };
 
+    const onAppInstalled = () => {
+      writeInstallPromptFlag(INSTALL_COMPLETED_KEY);
+      setDeferredPrompt(null);
+      setShowPrompt(false);
+      setIsSuppressed(true);
+    };
+
     window.addEventListener("beforeinstallprompt", onBeforeInstallPrompt);
+    window.addEventListener("appinstalled", onAppInstalled);
 
     if (isIOS) {
       iosPromptTimeout = setTimeout(() => setShowPrompt(true), 3000);
@@ -47,24 +86,37 @@ export function InstallPrompt() {
 
     return () => {
       window.removeEventListener("beforeinstallprompt", onBeforeInstallPrompt);
+      window.removeEventListener("appinstalled", onAppInstalled);
       if (iosPromptTimeout) clearTimeout(iosPromptTimeout);
       if (installPromptTimeout) clearTimeout(installPromptTimeout);
     };
-  }, [isIOS, isStandalone]);
+  }, [isIOS, isStandalone, isSuppressed]);
 
-  const closePrompt = () => setShowPrompt(false);
+  const closePrompt = () => {
+    writeInstallPromptFlag(INSTALL_DISMISSED_KEY);
+    setShowPrompt(false);
+    setIsSuppressed(true);
+  };
 
   const handleInstallClick = async () => {
     if (!deferredPrompt) return;
     await deferredPrompt.prompt();
     const choice = await deferredPrompt.userChoice;
     if (choice.outcome === "accepted") {
+      writeInstallPromptFlag(INSTALL_COMPLETED_KEY);
       setDeferredPrompt(null);
       setShowPrompt(false);
+      setIsSuppressed(true);
+      return;
     }
+
+    writeInstallPromptFlag(INSTALL_DISMISSED_KEY);
+    setDeferredPrompt(null);
+    setShowPrompt(false);
+    setIsSuppressed(true);
   };
 
-  if (!showPrompt || isStandalone) return null;
+  if (!showPrompt || isStandalone || isSuppressed) return null;
 
   const isIOSInstructions = isIOS && !deferredPrompt;
 

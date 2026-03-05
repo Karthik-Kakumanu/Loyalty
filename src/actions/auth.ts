@@ -72,24 +72,58 @@ function generateOtpCode(): string {
 }
 
 type Fast2SmsResult = {
-  return?: boolean;
-  message?: string[];
+  return?: boolean | string | number;
+  message?: unknown;
   request_id?: string;
   [key: string]: unknown;
 };
+
+function getFast2SmsError(payload: Fast2SmsResult | null): string | null {
+  const message = payload?.message;
+
+  if (Array.isArray(message)) {
+    const normalized = message
+      .map((part) => String(part).trim())
+      .filter(Boolean)
+      .join(", ");
+    return normalized.length > 0 ? normalized : null;
+  }
+
+  if (typeof message === "string") {
+    const normalized = message.trim();
+    return normalized.length > 0 ? normalized : null;
+  }
+
+  if (message && typeof message === "object") {
+    try {
+      const normalized = JSON.stringify(message);
+      return normalized !== "{}" ? normalized : null;
+    } catch {
+      return null;
+    }
+  }
+
+  return null;
+}
 
 async function sendFast2SmsRequest(
   apiKey: string,
   body: Record<string, string | number>,
 ): Promise<{ success: boolean; error?: string }> {
-  const response = await fetch(FAST2SMS_ENDPOINT, {
-    method: "POST",
-    headers: {
-      authorization: apiKey,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(body),
-  });
+  let response: Response;
+  try {
+    response = await fetch(FAST2SMS_ENDPOINT, {
+      method: "POST",
+      headers: {
+        authorization: apiKey,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(body),
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unknown network error";
+    return { success: false, error: `Unable to reach OTP provider: ${message}` };
+  }
 
   let payload: Fast2SmsResult | null = null;
   try {
@@ -97,20 +131,25 @@ async function sendFast2SmsRequest(
   } catch {
     payload = null;
   }
+  const providerError = getFast2SmsError(payload);
 
   if (!response.ok) {
     return {
       success: false,
-      error:
-        payload?.message?.join(", ") ||
-        `OTP provider returned HTTP ${response.status}.`,
+      error: providerError || `OTP provider returned HTTP ${response.status}.`,
     };
   }
 
-  if (payload?.return !== true) {
+  const accepted =
+    payload?.return === true ||
+    payload?.return === 1 ||
+    payload?.return === "1" ||
+    payload?.return === "true";
+
+  if (!accepted) {
     return {
       success: false,
-      error: payload?.message?.join(", ") || "OTP provider rejected the request.",
+      error: providerError || "OTP provider rejected the request.",
     };
   }
 
@@ -212,6 +251,11 @@ export async function sendOtp(formData: FormData): Promise<OtpResult> {
 
     const delivery = await deliverOtp(getOtpApiKey(), parsed.data.countryCode, normalized, code);
     if (!delivery.success) {
+      console.warn("OTP delivery failed", {
+        phone: normalized,
+        countryCode: parsed.data.countryCode,
+        error: delivery.error,
+      });
       return { success: false, error: delivery.error || "Unable to deliver OTP." };
     }
 
@@ -222,7 +266,8 @@ export async function sendOtp(formData: FormData): Promise<OtpResult> {
     });
 
     return { success: true };
-  } catch {
+  } catch (error) {
+    console.error("sendOtp failed", error);
     return { success: false, error: "Unable to send OTP right now. Please try again." };
   }
 }

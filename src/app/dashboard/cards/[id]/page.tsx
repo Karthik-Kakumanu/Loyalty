@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Image from "next/image";
 import { motion } from "framer-motion";
@@ -27,7 +27,8 @@ type LoyaltyCardData = {
 };
 
 const TARGET_STAMP_COUNT = 10;
-const DEMO_EXTRA_FILLED_STAMP = 1;
+const DASHBOARD_SYNC_INTERVAL_MS = 15000;
+const DEMO_EXTRA_STAMP = 1;
 const EARN_RULES = [
   "Every visit with a bill of INR 1,000 earns 1 stamp.",
   "Stamps are credited after successful bill settlement.",
@@ -172,20 +173,50 @@ export default function LoyaltyCardPage() {
   const router = useRouter();
   const [card, setCard] = useState<LoyaltyCardData | null>(null);
   const [loading, setLoading] = useState(true);
+  const fetchCard = useCallback(
+    async (withLoader = false) => {
+      if (withLoader) setLoading(true);
 
-  useEffect(() => {
-    async function fetchCard() {
       try {
         const data = await getDashboardData();
         const found = (data.myCards as LoyaltyCardData[]).find((candidate) => candidate.id === id);
         setCard(found ?? null);
       } finally {
-        setLoading(false);
+        if (withLoader) setLoading(false);
       }
-    }
+    },
+    [id],
+  );
 
-    void fetchCard();
-  }, [id]);
+  useEffect(() => {
+    void fetchCard(true);
+  }, [fetchCard]);
+
+  useEffect(() => {
+    const refreshCard = () => {
+      void fetchCard();
+    };
+    const onVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        refreshCard();
+      }
+    };
+
+    const intervalId = window.setInterval(() => {
+      if (document.visibilityState === "visible") {
+        refreshCard();
+      }
+    }, DASHBOARD_SYNC_INTERVAL_MS);
+
+    window.addEventListener("focus", refreshCard);
+    document.addEventListener("visibilitychange", onVisibilityChange);
+
+    return () => {
+      window.clearInterval(intervalId);
+      window.removeEventListener("focus", refreshCard);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+    };
+  }, [fetchCard]);
 
   const theme = useMemo(() => resolveTheme(card?.cafe.name), [card?.cafe.name]);
 
@@ -224,9 +255,9 @@ export default function LoyaltyCardPage() {
   const memberId = formatMembershipId(card);
   const targetStamps = Math.max(card.maxStamps || TARGET_STAMP_COUNT, TARGET_STAMP_COUNT);
   const actualEarnedStamps = Math.min(card.stamps, targetStamps);
-  const previewEarnedStamps = Math.min(actualEarnedStamps + DEMO_EXTRA_FILLED_STAMP, targetStamps);
-  const remaining = Math.max(targetStamps - previewEarnedStamps, 0);
-  const progress = targetStamps ? Math.round((previewEarnedStamps / targetStamps) * 100) : 0;
+  const displayStamps = Math.min(actualEarnedStamps + DEMO_EXTRA_STAMP, targetStamps);
+  const remaining = Math.max(targetStamps - displayStamps, 0);
+  const progress = targetStamps ? Math.round((displayStamps / targetStamps) * 100) : 0;
 
   return (
     <main
@@ -293,7 +324,7 @@ export default function LoyaltyCardPage() {
                   Progress
                 </p>
                 <p className="text-2xl font-black" style={{ color: theme.accentDeep }}>
-                  {previewEarnedStamps}
+                  {displayStamps}
                   <span className="text-base font-semibold" style={{ color: theme.muted }}>
                     /{targetStamps}
                   </span>
@@ -338,7 +369,7 @@ export default function LoyaltyCardPage() {
               <StampToken
                 key={index}
                 index={index}
-                isFilled={index < previewEarnedStamps}
+                isFilled={index < displayStamps}
                 theme={theme}
                 stampLogo={stampLogo}
               />

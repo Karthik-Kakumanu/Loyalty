@@ -1,4 +1,3 @@
-// file: src/actions/cafe.ts
 "use server";
 
 import type { Prisma } from "@prisma/client";
@@ -24,15 +23,15 @@ function formatCardSerial(prefix: string | null | undefined, sequence: number): 
 }
 
 async function allocateNextCardSerial(
-  tx: Prisma.TransactionClient,
-  cafeId: string
+tx: Prisma.TransactionClient,
+cafeId: string
 ): Promise<string> {
   const updated = await tx.cafe.update({
     where: { id: cafeId },
     data: { nextCardSeq: { increment: 1 } },
     select: {
-      cardPrefix: true,
-      nextCardSeq: true
+cardPrefix: true,
+nextCardSeq: true
     }
   });
 
@@ -41,7 +40,7 @@ async function allocateNextCardSerial(
 }
 
 export async function joinCafeWithSerial(cafeId: string): Promise<JoinCafeResult> {
-  const parsedCafeId = cafeIdSchema.safeParse(cafeId);
+const parsedCafeId = cafeIdSchema.safeParse(cafeId);
   if (!parsedCafeId.success) {
     return { success: false, error: "Invalid cafe id." };
   }
@@ -49,15 +48,15 @@ export async function joinCafeWithSerial(cafeId: string): Promise<JoinCafeResult
   try {
     const session = await getSession();
     if (!session?.userId) {
-      return { success: false, error: "Unauthorized" };
-    }
+return { success: false, error: "Unauthorized" };
+}
 
-    const result = await db.$transaction(async (tx) => {
+        const result = await db.$transaction(async (tx) => {
       const cafeExists = await tx.cafe.findUnique({
         where: { id: parsedCafeId.data },
         select: { id: true }
       });
-
+      
       if (!cafeExists) {
         throw new Error("Cafe not found");
       }
@@ -65,8 +64,8 @@ export async function joinCafeWithSerial(cafeId: string): Promise<JoinCafeResult
       const existing = await tx.loyaltyCard.findUnique({
         where: {
           userId_cafeId: {
-            userId: session.userId,
-            cafeId: parsedCafeId.data
+userId: session.userId,
+cafeId: parsedCafeId.data
           }
         }
       });
@@ -75,7 +74,7 @@ export async function joinCafeWithSerial(cafeId: string): Promise<JoinCafeResult
         return existing;
       }
 
-      const cardSerial = await allocateNextCardSerial(tx, parsedCafeId.data);
+            const cardSerial = await allocateNextCardSerial(tx, parsedCafeId.data);
 
       if (existing) {
         return tx.loyaltyCard.update({
@@ -100,8 +99,8 @@ export async function joinCafeWithSerial(cafeId: string): Promise<JoinCafeResult
     revalidatePath("/dashboard");
     revalidatePath("/dashboard/cards");
     revalidatePath(`/dashboard/cafe/${parsedCafeId.data}`);
-
-    return {
+    
+return {
       success: true,
       cardId: result.id,
       cardSerial: result.cardSerial ?? null
@@ -113,18 +112,18 @@ export async function joinCafeWithSerial(cafeId: string): Promise<JoinCafeResult
 }
 
 export async function getCafeDetails(cafeId: string): Promise<CafeDetailsResult> {
-  const parsedCafeId = cafeIdSchema.safeParse(cafeId);
+const parsedCafeId = cafeIdSchema.safeParse(cafeId);
   if (!parsedCafeId.success) return null;
 
   const session = await getSession();
   if (!session?.userId) {
-    return null;
-  }
-
+return null;
+}
+  
   const cafe = await db.cafe.findUnique({
     where: { id: parsedCafeId.data },
     include: {
-      cards: {
+            cards: {
         where: { userId: session.userId },
         take: 1
       }
@@ -147,8 +146,8 @@ export async function reserveTable(
   try {
     const session = await getSession();
     if (!session?.userId) {
-      return { success: false, error: "Unauthorized" };
-    }
+return { success: false, error: "Unauthorized" };
+}
 
     const targetDate = parsed.data.date;
     const windowStart = new Date(targetDate);
@@ -184,10 +183,10 @@ export async function reserveTable(
       await tx.reservation.create({
         data: {
           userId: session.userId,
-          cafeId: parsed.data.cafeId,
-          date: targetDate,
-          guests: parsed.data.guests,
-          status: "CONFIRMED",
+          cafeId: parsed.data.        cafeId,
+        date: targetDate,
+          guests: parsed.data.        guests,
+        status: "CONFIRMED",
         },
       });
 

@@ -58,6 +58,8 @@ const TABS = [
   { id: "trending", label: "Trending", icon: Flame },
   { id: "nearby", label: "Nearby", icon: Navigation },
 ];
+const DASHBOARD_SYNC_INTERVAL_MS = 15000;
+const DEMO_EXTRA_STAMP = 1;
 
 function calculateDistance(lat1: number | null, lon1: number | null, lat2: number | null, lon2: number | null) {
   if (lat1 === null || lon1 === null || lat2 === null || lon2 === null) return null;
@@ -94,7 +96,14 @@ export default function Dashboard() {
   const [unlockModal, setUnlockModal] = useState<Cafe | null>(null);
   const [isUnlocking, setIsUnlocking] = useState(false);
 
-  const fetchData = useCallback(async () => {
+  const fetchData = useCallback(async (options?: { withLoader?: boolean; autoSwitchToCards?: boolean }) => {
+    const withLoader = options?.withLoader ?? false;
+    const autoSwitchToCards = options?.autoSwitchToCards ?? false;
+
+    if (withLoader) {
+      setIsLoading(true);
+    }
+
     try {
       const res = await getDashboardData();
       if (res) {
@@ -103,23 +112,53 @@ export default function Dashboard() {
           trending: res.trending || [],
           allCafes: res.allCafes || []
         });
-        if (res.myCards && res.myCards.length > 0) setActiveTab("cards");
+        if (autoSwitchToCards && res.myCards && res.myCards.length > 0) {
+          setActiveTab("cards");
+        }
       }
     } catch (error) {
       console.error("Error fetching data:", error);
     } finally {
-      setIsLoading(false);
+      if (withLoader) {
+        setIsLoading(false);
+      }
     }
   }, []);
 
   useEffect(() => {
-    fetchData();
+    void fetchData({ withLoader: true, autoSwitchToCards: true });
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
         (pos) => setUserLoc({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
         () => undefined
       );
     }
+  }, [fetchData]);
+
+  useEffect(() => {
+    const refreshDashboard = () => {
+      void fetchData();
+    };
+    const onVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        refreshDashboard();
+      }
+    };
+
+    const intervalId = window.setInterval(() => {
+      if (document.visibilityState === "visible") {
+        refreshDashboard();
+      }
+    }, DASHBOARD_SYNC_INTERVAL_MS);
+
+    window.addEventListener("focus", refreshDashboard);
+    document.addEventListener("visibilitychange", onVisibilityChange);
+
+    return () => {
+      window.clearInterval(intervalId);
+      window.removeEventListener("focus", refreshDashboard);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+    };
   }, [fetchData]);
 
   useEffect(() => {
@@ -141,7 +180,7 @@ export default function Dashboard() {
       const result = await joinCafe(cafeId);
       if (result.success) {
         setUnlockModal(null);
-        await fetchData(); 
+        await fetchData({ autoSwitchToCards: true }); 
         setActiveTab("cards");
       } else {
         toast.error(result.error || "Failed to unlock membership.");
@@ -280,6 +319,7 @@ export default function Dashboard() {
                 data.myCards.map((card: LoyaltyCard) => {
                   const stampLogo = getCafeStampIconByName(card.cafe.name);
                   const previewSlots = Math.min(card.maxStamps, 10);
+                  const displayStamps = Math.min(card.stamps + DEMO_EXTRA_STAMP, card.maxStamps);
 
                   return (
                     <div
@@ -318,11 +358,11 @@ export default function Dashboard() {
                         <div>
                           <div className="flex justify-between text-xs font-bold mb-2 tracking-wide uppercase opacity-90">
                             <span>{card.tier}</span>
-                            <span>{card.stamps} / {card.maxStamps}</span>
+                            <span>{displayStamps} / {card.maxStamps}</span>
                           </div>
                           <div className="flex flex-wrap gap-1.5">
                             {Array.from({ length: previewSlots }).map((_, i) => {
-                              const filled = i < card.stamps;
+                              const filled = i < displayStamps;
                               return (
                                 <div
                                   key={i}
@@ -330,15 +370,15 @@ export default function Dashboard() {
                                     filled ? "border-white/70 bg-white" : "border-white/25 bg-white/10"
                                   }`}
                                 >
-                                  {filled ? (
-                                    <Image
-                                      src={stampLogo}
-                                      alt="Stamp logo"
-                                      fill
-                                      sizes="20px"
-                                      className="object-contain p-0.5"
-                                    />
-                                  ) : null}
+                                  <Image
+                                    src={stampLogo}
+                                    alt="Stamp logo"
+                                    fill
+                                    sizes="20px"
+                                    className={`object-contain p-0.5 transition-all duration-300 ${
+                                      filled ? "opacity-100 saturate-100" : "opacity-35 grayscale"
+                                    }`}
+                                  />
                                 </div>
                               );
                             })}

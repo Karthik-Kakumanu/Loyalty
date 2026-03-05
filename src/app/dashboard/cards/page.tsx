@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import Image from "next/image";
 import { 
@@ -16,6 +16,8 @@ import { getDashboardData } from "@/actions/dashboard";
 import { getCafeLogoByName, getCafeStampIconByName } from "@/features/cafe/config/branding";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
+const DASHBOARD_SYNC_INTERVAL_MS = 15000;
+const DEMO_EXTRA_STAMP = 1;
 
 // --- Types ---
 interface LoyaltyCard {
@@ -77,27 +79,59 @@ export default function CardsPage() {
   const [cards, setCards] = useState<LoyaltyCard[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Fetch Real Data
-  useEffect(() => {
-    async function loadCards() {
-      try {
-        const data = await getDashboardData();
-        if (data && data.myCards) {
-          const formattedCards = (data.myCards as LoyaltyCard[]).map((card) => ({
-            ...card,
-            maxStamps: card.maxStamps || 10,
-            tier: card.tier || "Member",
-          }));
-          setCards(formattedCards);
-        }
-      } catch (error) {
-        console.error("Failed to load cards:", error);
-      } finally {
+  const loadCards = useCallback(async (withLoader = false) => {
+    if (withLoader) {
+      setLoading(true);
+    }
+
+    try {
+      const data = await getDashboardData();
+      if (data && data.myCards) {
+        const formattedCards = (data.myCards as LoyaltyCard[]).map((card) => ({
+          ...card,
+          maxStamps: card.maxStamps || 10,
+          tier: card.tier || "Member",
+        }));
+        setCards(formattedCards);
+      }
+    } catch (error) {
+      console.error("Failed to load cards:", error);
+    } finally {
+      if (withLoader) {
         setLoading(false);
       }
     }
-    loadCards();
   }, []);
+
+  useEffect(() => {
+    void loadCards(true);
+  }, [loadCards]);
+
+  useEffect(() => {
+    const refreshCards = () => {
+      void loadCards();
+    };
+    const onVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        refreshCards();
+      }
+    };
+
+    const intervalId = window.setInterval(() => {
+      if (document.visibilityState === "visible") {
+        refreshCards();
+      }
+    }, DASHBOARD_SYNC_INTERVAL_MS);
+
+    window.addEventListener("focus", refreshCards);
+    document.addEventListener("visibilitychange", onVisibilityChange);
+
+    return () => {
+      window.clearInterval(intervalId);
+      window.removeEventListener("focus", refreshCards);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+    };
+  }, [loadCards]);
 
   return (
     <div className="w-full max-w-7xl mx-auto space-y-6 pb-4">
@@ -168,6 +202,7 @@ export default function CardsPage() {
                 const cafeLogo = getCafeLogoByName(card.cafe.name);
                 const stampLogo = getCafeStampIconByName(card.cafe.name);
                 const previewSlots = Math.min(card.maxStamps, 10);
+                const displayStamps = Math.min(card.stamps + DEMO_EXTRA_STAMP, card.maxStamps);
 
                 return (
                   <motion.div
@@ -234,13 +269,13 @@ export default function CardsPage() {
                         <div className="flex justify-between items-end mb-2.5">
                           <div className="text-xs sm:text-sm font-medium text-white/70">Progress</div>
                           <div className="text-2xl sm:text-3xl font-bold tracking-tight leading-none">
-                            {card.stamps}<span className="text-base sm:text-lg text-white/40 font-medium">/{card.maxStamps}</span>
+                            {displayStamps}<span className="text-base sm:text-lg text-white/40 font-medium">/{card.maxStamps}</span>
                           </div>
                         </div>
                         
                         <div className="flex flex-wrap gap-1.5">
                           {Array.from({ length: previewSlots }).map((_, i) => {
-                            const filled = i < card.stamps;
+                            const filled = i < displayStamps;
                             return (
                               <div
                                 key={i}
@@ -248,15 +283,15 @@ export default function CardsPage() {
                                   filled ? "border-white/70 bg-white" : "border-white/25 bg-white/10"
                                 }`}
                               >
-                                {filled ? (
-                                  <Image
-                                    src={stampLogo}
-                                    alt="Stamp logo"
-                                    fill
-                                    sizes="20px"
-                                    className="object-contain p-0.5"
-                                  />
-                                ) : null}
+                                <Image
+                                  src={stampLogo}
+                                  alt="Stamp logo"
+                                  fill
+                                  sizes="20px"
+                                  className={`object-contain p-0.5 transition-all duration-300 ${
+                                    filled ? "opacity-100 saturate-100" : "opacity-35 grayscale"
+                                  }`}
+                                />
                               </div>
                             );
                           })}

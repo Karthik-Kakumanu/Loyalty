@@ -147,8 +147,8 @@ export async function reserveTable(
   try {
     const session = await getSession();
     if (!session?.userId) {
-return { success: false, error: "Unauthorized" };
-}
+      return { success: false, error: "Unauthorized" };
+    }
 
     const targetDate = parsed.data.date;
     const windowStart = new Date(targetDate);

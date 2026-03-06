@@ -4,6 +4,7 @@ import type { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import { getSession } from "@/lib/session";
 import { revalidatePath } from "next/cache";
+import { z } from "zod";
 import { cafeIdSchema, reservationPayloadSchema } from "@/lib/validation/cafe";
 
 type JoinCafeResult =
@@ -183,10 +184,10 @@ return { success: false, error: "Unauthorized" };
       await tx.reservation.create({
         data: {
           userId: session.userId,
-          cafeId: parsed.data.        cafeId,
-        date: targetDate,
-          guests: parsed.data.        guests,
-        status: "CONFIRMED",
+          cafeId: parsed.data.cafeId,
+          date: targetDate,
+          guests: parsed.data.guests,
+          status: "CONFIRMED",
         },
       });
 
@@ -204,5 +205,136 @@ return { success: false, error: "Unauthorized" };
   } catch (error) {
     console.error("reserveTable error:", error);
     return { success: false, error: "Unable to create reservation" };
+  }
+}
+
+export async function cancelReservation(reservationId: string): Promise<ReserveResult> {
+  const parsed = z.string().cuid().safeParse(reservationId);
+  if (!parsed.success) {
+    return { success: false, error: "Invalid reservation id." };
+  }
+
+  try {
+    const session = await getSession();
+    if (!session?.userId) {
+      return { success: false, error: "Unauthorized" };
+    }
+
+    const reservation = await db.reservation.findUnique({
+      where: { id: parsed.data },
+      select: { userId: true, status: true },
+    });
+
+    if (!reservation || reservation.userId !== session.userId) {
+      return { success: false, error: "Reservation not found." };
+    }
+
+    if (reservation.status === "CANCELLED") {
+      return { success: false, error: "Reservation is already cancelled." };
+    }
+
+    await db.reservation.update({
+      where: { id: parsed.data },
+      data: { status: "CANCELLED" },
+    });
+
+    revalidatePath("/dashboard/reserve");
+
+    return { success: true };
+  } catch (error) {
+    console.error("cancelReservation error:", error);
+    return { success: false, error: "Unable to cancel reservation" };
+  }
+}
+
+export async function modifyReservation(
+  reservationId: string,
+  date: Date,
+  guests: number
+): Promise<ReserveResult> {
+  const parsed = z.object({
+    reservationId: z.string().cuid(),
+    date: z.coerce.date().refine((date) => date.getTime() > Date.now(), {
+      message: "Reservation time must be in the future.",
+    }),
+    guests: z.number().int().min(1, "Guests must be at least 1.").max(12, "Too many guests."),
+  }).safeParse({ reservationId, date, guests });
+
+  if (!parsed.success) {
+    return { success: false, error: parsed.error.issues[0]?.message ?? "Invalid request." };
+  }
+
+  try {
+    const session = await getSession();
+    if (!session?.userId) {
+      return { success: false, error: "Unauthorized" };
+    }
+
+    const reservation = await db.reservation.findUnique({
+      where: { id: parsed.data.reservationId },
+      select: { userId: true, cafeId: true, status: true },
+    });
+
+    if (!reservation || reservation.userId !== session.userId) {
+      return { success: false, error: "Reservation not found." };
+    }
+
+    if (reservation.status !== "CONFIRMED") {
+      return { success: false, error: "Cannot modify this reservation." };
+    }
+
+    const targetDate = parsed.data.date;
+    const windowStart = new Date(targetDate);
+    windowStart.setMinutes(0, 0, 0);
+    const windowEnd = new Date(windowStart);
+    windowEnd.setHours(windowEnd.getHours() + 1);
+
+    const canModify = await db.$transaction(async (tx) => {
+      const cafe = await tx.cafe.findUnique({
+        where: { id: reservation.cafeId },
+        select: { totalTables: true },
+      });
+
+      if (!cafe) {
+        return { ok: false, error: "Cafe not found." } as const;
+      }
+
+      const existingReservations = await tx.reservation.count({
+        where: {
+          cafeId: reservation.cafeId,
+          status: "CONFIRMED",
+          date: {
+            gte: windowStart,
+            lt: windowEnd,
+          },
+          id: { not: parsed.data.reservationId }, // exclude current
+        },
+      });
+
+      if (existingReservations >= cafe.totalTables) {
+        return { ok: false, error: "No tables available for that time slot." } as const;
+      }
+
+      await tx.reservation.update({
+        where: { id: parsed.data.reservationId },
+        data: {
+          date: targetDate,
+          guests: parsed.data.guests,
+        },
+      });
+
+      return { ok: true } as const;
+    });
+
+    if (!canModify.ok) {
+      return { success: false, error: canModify.error };
+    }
+
+    revalidatePath("/dashboard/reserve");
+
+    return { success: true };
+  } catch (error) {
+    console.error("modifyReservation error:", error);
+    return { success: false, error: "Unable to modify reservation" };
   }
 }

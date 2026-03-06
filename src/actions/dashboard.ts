@@ -64,6 +64,7 @@ type ReservationRecord = {
   id: string;
   status: string;
   date: Date;
+  guests: number;
   cafe: {
     name: string;
   };

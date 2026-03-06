@@ -24,3 +24,12 @@ export function getSessionSecret(): string {
 export function getOtpApiKey(): string | null {
   return readEnv("OTP_API_KEY");
 }
+
+// optionally override the SMS sender identification that appears on the
+// recipient's phone.  Some providers require you to pre‑register the
+// sender name (also called "sender id") before it will be used; if you
+// don't supply one the account default will be used.
+export function getOtpSenderId(): string {
+  // fall back to a sensible default so you don't have to set an env var
+  return readEnv("OTP_SENDER_ID") || "Revistra";
+}

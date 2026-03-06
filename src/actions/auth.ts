@@ -4,7 +4,7 @@ import bcrypt from "bcryptjs";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { db } from "@/lib/db";
-import { getOtpApiKey } from "@/lib/env";
+import { getOtpApiKey, getOtpSenderId } from "@/lib/env";
 import { normalizePhone, splitNormalizedPhone } from "@/lib/phone";
 import { createSession, deleteSession, getSession } from "@/lib/session";
 import {
@@ -162,6 +162,8 @@ async function deliverOtp(
   normalizedPhone: string,
   code: string,
 ): Promise<{ success: boolean; error?: string }> {
+  const senderId = getOtpSenderId();
+
   if (!apiKey) {
     if (process.env.NODE_ENV !== "production") {
       console.info(`[OTP DEV] ${normalizedPhone} => ${code}`);
@@ -182,6 +184,7 @@ async function deliverOtp(
     route: "otp",
     numbers: phone10,
     flash: 0,
+    sender_id: senderId,
   });
 
   if (otpRoute.success) return { success: true };
@@ -190,12 +193,22 @@ async function deliverOtp(
   const quickRoute = await sendFast2SmsRequest(apiKey, {
     route: "q",
     language: "english",
-    message: `Your Revistra OTP is ${code}`,
+    message: `Your ${senderId} OTP is ${code}`,
     numbers: phone10,
     flash: 0,
+    sender_id: senderId,
   });
 
   if (quickRoute.success) return { success: true };
+
+  // log both errors so we can debug why it failed first time
+  console.warn("deliverOtp failure", {
+    phone: normalizedPhone,
+    countryCode,
+    code,
+    otpRoute,
+    quickRoute,
+  });
 
   return {
     success: false,

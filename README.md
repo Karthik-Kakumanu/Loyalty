@@ -30,6 +30,12 @@ Required:
 - `SESSION_SECRET` (minimum 32 characters)
 - `OTP_API_KEY` (optional for OTP provider integration)
 
+OTP provider options:
+
+- `OTP_FAST2SMS_ROUTE` (`q`, `otp`, or `dlt`; defaults to `q`)
+- `OTP_SENDER_ID` (sender id approved in Fast2SMS)
+- `OTP_MESSAGE_TEMPLATE` (used for `q` / `dlt`; use `{{OTP}}` placeholder)
+
 ## Scripts
 
 - `npm run icons:sync` - regenerate favicon + PWA icons from `public/logo.jpg` on Windows (skips safely on Linux/macOS CI)

@@ -1,5 +1,8 @@
 const MIN_SECRET_LENGTH = 32;
 
+const FAST2SMS_OTP_ROUTES = ["otp", "q", "dlt"] as const;
+type Fast2SmsOtpRoute = (typeof FAST2SMS_OTP_ROUTES)[number];
+
 function readEnv(name: string): string | null {
   const value = process.env[name];
   if (!value) return null;
@@ -23,6 +26,23 @@ export function getSessionSecret(): string {
 
 export function getOtpApiKey(): string | null {
   return readEnv("OTP_API_KEY");
+}
+
+export function getOtpFast2SmsRoute(): Fast2SmsOtpRoute {
+  const route = readEnv("OTP_FAST2SMS_ROUTE")?.toLowerCase();
+  if (route && FAST2SMS_OTP_ROUTES.includes(route as Fast2SmsOtpRoute)) {
+    return route as Fast2SmsOtpRoute;
+  }
+
+  // Default to Quick SMS route to avoid OTP-route account verification blockers.
+  return "q";
+}
+
+export function getOtpMessageTemplate(): string {
+  return (
+    readEnv("OTP_MESSAGE_TEMPLATE") ||
+    "{{OTP}} is your Revistra OTP. It is valid for 10 minutes. Do not share this code."
+  );
 }
 
 // optionally override the SMS sender identification that appears on the

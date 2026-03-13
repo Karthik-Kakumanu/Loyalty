@@ -4,7 +4,12 @@ import bcrypt from "bcryptjs";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { db } from "@/lib/db";
-import { getOtpApiKey, getOtpSenderId } from "@/lib/env";
+import {
+  getOtpApiKey,
+  getOtpFast2SmsRoute,
+  getOtpMessageTemplate,
+  getOtpSenderId,
+} from "@/lib/env";
 import { normalizePhone, splitNormalizedPhone } from "@/lib/phone";
 import { createSession, deleteSession, getSession } from "@/lib/session";
 import {
@@ -48,6 +53,10 @@ const OTP_RESEND_COOLDOWN_MS = 30 * 1000;
 const OTP_HASH_ROUNDS = 10;
 const FAST2SMS_ENDPOINT = "https://www.fast2sms.com/dev/bulkV2";
 const OTP_PROVIDER_TIMEOUT_MS = 8000;
+const FAST2SMS_OTP_ROUTE_BLOCKER_PATTERN =
+  /complete website verification|visit otp message menu|use dlt sms api/i;
+
+type Fast2SmsRoute = "otp" | "q" | "dlt";
 
 function getValidationErrorMessage(error: z.ZodError): string {
   return error.issues[0]?.message ?? "Invalid request.";
@@ -195,6 +204,8 @@ async function deliverOtp(
   code: string,
 ): Promise<{ success: boolean; error?: string }> {
   const senderId = getOtpSenderId();
+  const preferredRoute = getOtpFast2SmsRoute();
+  const otpMessage = getOtpMessageTemplate().replace(/{{\s*OTP\s*}}/gi, code);
 
   if (!apiKey) {
     if (process.env.NODE_ENV !== "production") {
@@ -209,38 +220,64 @@ async function deliverOtp(
   }
 
   const phone10 = normalizedPhone.replace(/^\+91/, "");
+  const attempts: Fast2SmsRoute[] =
+    preferredRoute === "otp" ? ["otp", "q"] : [preferredRoute];
 
-  // Use Fast2SMS OTP route only.
-  const otpRoute = await sendFast2SmsRequest(apiKey, {
-    variables_values: code,
-    route: "otp",
-    numbers: phone10,
-    flash: 0,
-    sender_id: senderId,
-  });
+  let lastError: string | undefined;
 
-  if (otpRoute.success) {
-    console.info("OTP provider request success", {
-      route: "otp",
+  for (const route of attempts) {
+    const body: Record<string, string | number> = {
+      route,
+      numbers: phone10,
+      flash: 0,
+      sender_id: senderId,
+    };
+
+    if (route === "otp") {
+      body.variables_values = code;
+    } else {
+      body.message = otpMessage;
+    }
+
+    const providerResult = await sendFast2SmsRequest(apiKey, body);
+
+    if (providerResult.success) {
+      console.info("OTP provider request success", {
+        route,
+        phone: normalizedPhone,
+        countryCode,
+        requestId: providerResult.requestId ?? null,
+        statusCode: providerResult.statusCode ?? null,
+      });
+      return { success: true };
+    }
+
+    console.warn("OTP provider request failed", {
+      route,
       phone: normalizedPhone,
       countryCode,
-      requestId: otpRoute.requestId ?? null,
-      statusCode: otpRoute.statusCode ?? null,
+      requestId: providerResult.requestId ?? null,
+      statusCode: providerResult.statusCode ?? null,
+      providerMessage: providerResult.providerMessage ?? null,
+      error: providerResult.error ?? null,
     });
-    return { success: true };
+
+    lastError = providerResult.error || "Unable to deliver OTP.";
+
+    if (
+      route === "otp" &&
+      preferredRoute === "otp" &&
+      providerResult.error &&
+      FAST2SMS_OTP_ROUTE_BLOCKER_PATTERN.test(providerResult.error)
+    ) {
+      continue;
+    }
+
+    // Stop retries for non-OTP routes or non-route-verification errors.
+    break;
   }
 
-  console.warn("OTP provider request failed", {
-    route: "otp",
-    phone: normalizedPhone,
-    countryCode,
-    requestId: otpRoute.requestId ?? null,
-    statusCode: otpRoute.statusCode ?? null,
-    providerMessage: otpRoute.providerMessage ?? null,
-    error: otpRoute.error ?? null,
-  });
-
-  return { success: false, error: otpRoute.error || "Unable to deliver OTP." };
+  return { success: false, error: lastError || "Unable to deliver OTP." };
 }
 
 export async function checkUserExists(

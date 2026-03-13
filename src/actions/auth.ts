@@ -47,6 +47,7 @@ const OTP_EXPIRY_MS = 10 * 60 * 1000;
 const OTP_RESEND_COOLDOWN_MS = 30 * 1000;
 const OTP_HASH_ROUNDS = 10;
 const FAST2SMS_ENDPOINT = "https://www.fast2sms.com/dev/bulkV2";
+const OTP_PROVIDER_TIMEOUT_MS = 8000;
 
 function getValidationErrorMessage(error: z.ZodError): string {
   return error.issues[0]?.message ?? "Invalid request.";
@@ -109,8 +110,17 @@ function getFast2SmsError(payload: Fast2SmsResult | null): string | null {
 async function sendFast2SmsRequest(
   apiKey: string,
   body: Record<string, string | number>,
-): Promise<{ success: boolean; error?: string }> {
+): Promise<{
+  success: boolean;
+  error?: string;
+  requestId?: string;
+  statusCode?: number;
+  providerMessage?: string | null;
+}> {
   let response: Response;
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), OTP_PROVIDER_TIMEOUT_MS);
+
   try {
     response = await fetch(FAST2SMS_ENDPOINT, {
       method: "POST",
@@ -119,10 +129,20 @@ async function sendFast2SmsRequest(
         "Content-Type": "application/json",
       },
       body: JSON.stringify(body),
+      signal: controller.signal,
     });
   } catch (error) {
+    clearTimeout(timeout);
+    if (error instanceof Error && error.name === "AbortError") {
+      return {
+        success: false,
+        error: `OTP provider timed out after ${Math.floor(OTP_PROVIDER_TIMEOUT_MS / 1000)}s.`,
+      };
+    }
     const message = error instanceof Error ? error.message : "Unknown network error";
     return { success: false, error: `Unable to reach OTP provider: ${message}` };
+  } finally {
+    clearTimeout(timeout);
   }
 
   let payload: Fast2SmsResult | null = null;
@@ -131,12 +151,16 @@ async function sendFast2SmsRequest(
   } catch {
     payload = null;
   }
+  const requestId = typeof payload?.request_id === "string" ? payload.request_id : undefined;
   const providerError = getFast2SmsError(payload);
 
   if (!response.ok) {
     return {
       success: false,
       error: providerError || `OTP provider returned HTTP ${response.status}.`,
+      requestId,
+      statusCode: response.status,
+      providerMessage: providerError,
     };
   }
 
@@ -150,10 +174,18 @@ async function sendFast2SmsRequest(
     return {
       success: false,
       error: providerError || "OTP provider rejected the request.",
+      requestId,
+      statusCode: response.status,
+      providerMessage: providerError,
     };
   }
 
-  return { success: true };
+  return {
+    success: true,
+    requestId,
+    statusCode: response.status,
+    providerMessage: providerError,
+  };
 }
 
 async function deliverOtp(
@@ -178,7 +210,7 @@ async function deliverOtp(
 
   const phone10 = normalizedPhone.replace(/^\+91/, "");
 
-  // Preferred flow: dedicated OTP route.
+  // Use Fast2SMS OTP route only.
   const otpRoute = await sendFast2SmsRequest(apiKey, {
     variables_values: code,
     route: "otp",
@@ -187,33 +219,28 @@ async function deliverOtp(
     sender_id: senderId,
   });
 
-  if (otpRoute.success) return { success: true };
+  if (otpRoute.success) {
+    console.info("OTP provider request success", {
+      route: "otp",
+      phone: normalizedPhone,
+      countryCode,
+      requestId: otpRoute.requestId ?? null,
+      statusCode: otpRoute.statusCode ?? null,
+    });
+    return { success: true };
+  }
 
-  // Fallback: quick route in case provider account lacks otp-route entitlement.
-  const quickRoute = await sendFast2SmsRequest(apiKey, {
-    route: "q",
-    language: "english",
-    message: `Your ${senderId} OTP is ${code}`,
-    numbers: phone10,
-    flash: 0,
-    sender_id: senderId,
-  });
-
-  if (quickRoute.success) return { success: true };
-
-  // log both errors so we can debug why it failed first time
-  console.warn("deliverOtp failure", {
+  console.warn("OTP provider request failed", {
+    route: "otp",
     phone: normalizedPhone,
     countryCode,
-    code,
-    otpRoute,
-    quickRoute,
+    requestId: otpRoute.requestId ?? null,
+    statusCode: otpRoute.statusCode ?? null,
+    providerMessage: otpRoute.providerMessage ?? null,
+    error: otpRoute.error ?? null,
   });
 
-  return {
-    success: false,
-    error: quickRoute.error || otpRoute.error || "Unable to deliver OTP.",
-  };
+  return { success: false, error: otpRoute.error || "Unable to deliver OTP." };
 }
 
 export async function checkUserExists(

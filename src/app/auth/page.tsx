@@ -174,6 +174,7 @@ export default function AuthPage() {
   const [view, setView] = useState<"login" | "signup" | "otp">("login");
   const [authMode, setAuthMode] = useState<"login" | "signup">("login"); // Tracks flow
   const [loading, setLoading] = useState(false);
+  const [resendLoading, setResendLoading] = useState(false);
   const [success, setSuccess] = useState(false);
   const [phoneForOtp, setPhoneForOtp] = useState<string>("");
   const [timer, setTimer] = useState(30);
@@ -265,8 +266,9 @@ export default function AuthPage() {
   };
 
   // 3. RESEND OTP
-  const handleResend = () => {
-    if (timer > 0) return;
+  const handleResend = async () => {
+    if (timer > 0 || resendLoading || loading) return;
+
     const matchedCountry = COUNTRIES.find((country) => phoneForOtp.startsWith(country.dial));
     if (!matchedCountry) {
       toast.error("Unable to identify country code.");
@@ -277,13 +279,19 @@ export default function AuthPage() {
     const formData = new FormData();
     formData.append("countryCode", matchedCountry.dial);
     formData.append("phone", rawPhone);
-    void sendOtp(formData).then((result) => {
+    setResendLoading(true);
+    try {
+      const result = await sendOtp(formData);
       if (!result.success) {
         toast.error(result.error || "Unable to resend OTP.");
         return;
       }
+
+      toast.success("OTP sent.");
       setTimer(30);
-    });
+    } finally {
+      setResendLoading(false);
+    }
   };
 
   // 4. VERIFY OTP
@@ -368,8 +376,8 @@ export default function AuthPage() {
                   <AuthInput label="One-Time Password" placeholder="• • • • • •" className="text-center text-2xl tracking-[0.5em] font-bold h-14" maxLength={6} error={otpForm.formState.errors.code?.message} {...otpForm.register("code")} />
                   <div className="space-y-3 pt-2">
                     <AuthButton type="submit" isLoading={loading}>Verify OTP</AuthButton>
-                    <button type="button" onClick={handleResend} disabled={timer > 0} className="w-full text-xs font-medium text-zinc-500 hover:text-[#C72C48] disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2">
-                       {timer > 0 ? `Resend code in ${timer}s` : <><RefreshCw size={14} /> Resend Code</>}
+                      <button type="button" onClick={handleResend} disabled={timer > 0 || resendLoading || loading} className="w-full text-xs font-medium text-zinc-500 hover:text-[#C72C48] disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2">
+                        {timer > 0 ? `Resend code in ${timer}s` : resendLoading ? <><Loader2 size={14} className="animate-spin" /> Sending...</> : <><RefreshCw size={14} /> Resend Code</>}
                     </button>
                     <div className="pt-2">
                        <AuthButton variant="secondary" onClick={() => setView(authMode)}><ChevronLeft size={16} className="mr-1"/> Wrong Number?</AuthButton>

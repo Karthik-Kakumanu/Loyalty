@@ -53,6 +53,8 @@ const OTP_RESEND_COOLDOWN_MS = 30 * 1000;
 const OTP_HASH_ROUNDS = 10;
 const FAST2SMS_ENDPOINT = "https://www.fast2sms.com/dev/bulkV2";
 const OTP_PROVIDER_TIMEOUT_MS = 8000;
+const OTP_PROVIDER_RETRY_DELAY_MS = 1200;
+const OTP_PROVIDER_MAX_ATTEMPTS = 2;
 const FAST2SMS_OTP_ROUTE_BLOCKER_PATTERN =
   /complete website verification|visit otp message menu|use dlt sms api/i;
 
@@ -197,6 +199,43 @@ async function sendFast2SmsRequest(
   };
 }
 
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function shouldRetryProviderRequest(result: {
+  success: boolean;
+  error?: string;
+  statusCode?: number;
+}): boolean {
+  if (result.success) return false;
+
+  if (typeof result.statusCode === "number" && result.statusCode >= 500) {
+    return true;
+  }
+
+  const normalizedError = (result.error || "").toLowerCase();
+  return normalizedError.includes("timed out") || normalizedError.includes("unable to reach otp provider");
+}
+
+async function sendFast2SmsRequestWithRetry(
+  apiKey: string,
+  body: Record<string, string | number>,
+): ReturnType<typeof sendFast2SmsRequest> {
+  let latest = await sendFast2SmsRequest(apiKey, body);
+
+  for (let attempt = 2; attempt <= OTP_PROVIDER_MAX_ATTEMPTS; attempt += 1) {
+    if (!shouldRetryProviderRequest(latest)) {
+      return latest;
+    }
+
+    await sleep(OTP_PROVIDER_RETRY_DELAY_MS);
+    latest = await sendFast2SmsRequest(apiKey, body);
+  }
+
+  return latest;
+}
+
 async function deliverOtp(
   apiKey: string | null,
   countryCode: string,
@@ -239,7 +278,7 @@ async function deliverOtp(
       body.message = otpMessage;
     }
 
-    const providerResult = await sendFast2SmsRequest(apiKey, body);
+    const providerResult = await sendFast2SmsRequestWithRetry(apiKey, body);
 
     if (providerResult.success) {
       console.info("OTP provider request success", {

@@ -269,12 +269,17 @@ async function deliverOtp(
       route,
       numbers: phone10,
       flash: 0,
-      sender_id: senderId,
     };
 
     if (route === "otp") {
+      // OTP route uses Fast2SMS's own template; no sender_id needed.
       body.variables_values = code;
+    } else if (route === "dlt") {
+      // DLT route requires a 6-char DLT-registered sender ID.
+      body.message = otpMessage;
+      if (senderId) body.sender_id = senderId;
     } else {
+      // Quick route (q): sender_id is not a valid parameter; omit it.
       body.message = otpMessage;
     }
 
